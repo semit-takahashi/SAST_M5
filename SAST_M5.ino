@@ -1,15 +1,27 @@
-/* F.Takahashi SAST V2 
- * File : SAST_M5.ino
-*/
+/**
+ * @file SAST_M5.ino
+ * @author F.Takahashi (fumihito.takahashi@sem-it.com)
+ * @brief 
+ * @version 0.1
+ * @date 2021-08-20
+ * 
+ * @copyright Copyright (c) 2021
+ * 
+ */
+
 #include <M5Stack.h>
 #include <WiFi.h>
 #include <IniFile.h>
 #include "time.h"
+#include "utility/M5Timer.h"
 
 #include <Wire.h>
 #include "Adafruit_Sensor.h"
 #include <Adafruit_BMP280.h>
 #include "UNIT_ENV.h"
+
+#include "INF.h"
+#include "netRTC.h"
 
 const uint16_t LCD_WIDTH      = 320;
 const uint16_t LCD_HEIGHT     = 240;
@@ -18,153 +30,7 @@ const uint16_t CHART_WIDTH    = 250;
 const uint16_t CHART_HEIGHT   = 100;
 
 //const char *WF_SSID = "aterm-0eb815-g";
-const char *WF_KEY  = "23d4a4031f7ab";
-
-/*===================================================== Class Init Info ===*/
-struct thrd {
-  bool use = false;
-  float min;
-  float max;
-};
-
-struct SENS_TH1 {
-  char  MAC[19];
-  char  name[60];
-  char  amb_templ[3];
-  char  amb_humid[3];
-  struct thrd th_templ;
-  struct thrd th_humid;
-};
-
-struct SENS_920J {
-  uint16_t  ADDR;
-  char    name[60];
-  char  amb_templ[3];
-  char  amb_humid[3];
-  char  amb_als[3];
-  char  amb_press[3];
-  struct thrd th_templ;
-  struct thrd th_humid;
-  struct thrd th_als;
-};
-
-class INF {
-  private:
-    const char *iniFile = "/setup.ini";
-
-  public:
-    String wifi_ssid;
-    String wifi_key;
-
-    // ambient
-    String  amb_chID;
-    String  amb_wKey;
-    String  amb_rKey;
-
-    // LINE
-    String  LINE_token;
-    String  LINE_URL;
-
-    // Google Spredseet
-    char  GS_token[64];
-
-    // INKBIRD
-    struct SENS_TH1   snse_th1[3];
-
-    // L902J
-    struct SENS_920J  sens_920j[3];
-
-    INF() {}
-
-    bool load()
-    {
-      const size_t  buff_len = 809;
-      char          buff[buff_len];
-
-      Serial.println("Load INI file.");
-      if (!SD.begin()) {
-        Serial.println(" Please Insert SD-CARD and RESET! ");
-        M5.Lcd.println(" Please Insert SD-CARD and RESET! ");
-        while (1) ;
-      }
-
-      IniFile in(iniFile);
-
-      // File Open
-      if (!in.open()) {
-        Serial.printf("ERROR Ini file [%s] does not exist. \r\n STOP!", iniFile);
-        while (1);
-      }
-      Serial.printf("INI file [ %s ] exists\r\n",iniFile);
-
-      // Check File is Valid.
-      if (!in.validate(buff, buff_len)) {
-        Serial.printf("ini file %s not valid\r\n", in.getFilename());
-        printErrorMessage(in.getError());
-        // Cannot do anything else
-        while (1);
-      }
-
-      // Wi-Fi
-      if ( in.getValue( "Wi-Fi", "SSID", buff, buff_len ) ) {
-        Serial.print("Wi-Fi SSID: ");
-        Serial.println( buff );
-        wifi_ssid = buff;
-      } else {
-        Serial.printf("Not found SSID : ");
-        printErrorMessage(in.getError());
-      }
-
-      if ( in.getValue( "Wi-Fi", "KEY", buff, buff_len ) ) {
-        Serial.print("Wi-Fi KEY : ");
-        Serial.println( buff );
-        wifi_key = buff;
-      } else {
-        Serial.printf("Not Found KEY : ");
-        printErrorMessage(in.getError());
-      }
-
-    }
-
-    void printErrorMessage(uint8_t e, bool eol = true) {
-      switch (e) {
-        case IniFile::errorNoError:
-          Serial.print("no error");
-          break;
-        case IniFile::errorFileNotFound:
-          Serial.print("file not found");
-          break;
-        case IniFile::errorFileNotOpen:
-          Serial.print("file not open");
-          break;
-        case IniFile::errorBufferTooSmall:
-          Serial.print("buffer too small");
-          break;
-        case IniFile::errorSeekError:
-          Serial.print("seek error");
-          break;
-        case IniFile::errorSectionNotFound:
-          Serial.print("section not found");
-          break;
-        case IniFile::errorKeyNotFound:
-          Serial.print("key not found");
-          break;
-        case IniFile::errorEndOfFile:
-          Serial.print("end of file");
-          break;
-        case IniFile::errorUnknownError:
-          Serial.print("unknown error");
-          break;
-        default:
-          Serial.print("unknown error value");
-          break;
-      }
-      if (eol)
-        Serial.println();
-    }
-};
-
-
+//const char *WF_KEY  = "23d4a4031f7ab";
 
 /*===================================================== Class ENV II SENS ===*/
 class envSens {
@@ -176,18 +42,18 @@ class envSens {
   public:
     float     templ = 0.0f;
     float     humid = 0.0f;
-    uint16_t  pres  = 0.0f;
+    uint16_t  pres  = 0;
 
   public:
     bool setup() {
       if ( !bme.begin(0x76) ) {
         Serial.println("Could not find a valid BMP280 sensor, check wiring!");
         use = false;
-        return false;
+        return use;
       }
       Serial.println("Ready! ENV Sensor!");
       use = true;
-      return true;
+      return use;
     }
 
     void update() {
@@ -198,146 +64,8 @@ class envSens {
         humid = sht30.humidity;
       }
     }
-
-    void view() {
-      if ( !use ) return;
-      char    dat1[20];
-      char    dat2[20];
-      char    dat3[20];
-
-      update();
-      sprintf(dat1, "%5.1f C",  templ);
-      sprintf(dat2, "%5.1f %%", humid);
-      sprintf(dat3, "%4d hPa",  pres);
-
-      uint16_t xx = 200;
-      uint16_t yy = 25;
-      //M5.Lcd.setTextFont( 2 );
-      M5.Lcd.setTextSize( 3 );
-      M5.Lcd.drawString( dat1, xx, yy    );
-      M5.Lcd.drawString( dat2, xx, yy + 30 );
-      M5.Lcd.drawString( dat3, xx, yy + 60 );
-    }
-};
-
-
-/*===================================================== Class NTP Timeset ===*/
-class netRTC {
-  private:
-    // UpdateTiming
-    const unsigned long rst_hour = 600 * 1000;    // 10minute
-    //const unsigned long rst_hour = 2.16e7;    // 6hour
-    bool        IsSet = false;
-    const char*       ssid;
-    const char*       key;
-    const char* ntpServer =  "ntp.jst.mfeed.ad.jp";
-    const long  gmtOffset_sec = 3600 * 9;   // JST +9:00
-    const int   daylightOffset_sec = 0;
-    char        str_stime[16];      // 短い時間 MM/DD hh:mm
-    char        str_ltime[24];      // 長い時間 YYYY-MM-DD hh:mm:ss.ttt
-    unsigned int rst_count = 0;     // reset counter
-
-  public:
-    void setAP( const char *wifi_ssid, const char *wifi_key ) {
-      ssid = wifi_ssid;
-      key = wifi_key;
-      IsSet = true;
-      Serial.println( ssid );
-      Serial.println( key );
-    }
-
-    bool setNTP() {
-      if ( !IsSet ) return false;
-      uint8_t cnt = 20;
-      IPAddress ip;
-
-      // connect to WiFi
-      M5.Lcd.printf("connecting to\r\n %s ", ssid);
-      Serial.printf("Connecting to %s ", ssid);
-      WiFi.begin(ssid, key);
-      while (WiFi.status() != WL_CONNECTED) {
-        if ( cnt-- == 0 ) {
-          WiFi.disconnect(true);
-          WiFi.mode(WIFI_OFF);
-          M5.Lcd.printf(" Connect ERROR! (%d)\r\n", WiFi.status());
-          Serial.printf(" Connect ERROR! (%d)\r\n", WiFi.status());
-          // BEEP!!
-          delay( 10000 );
-          return false;
-        }
-        delay(500);
-        M5.Lcd.printf(".");
-        Serial.print(".");
-      }
-      ip = WiFi.localIP();
-      M5.Lcd.print(" CONNECTED -> ");
-      M5.Lcd.println(ip);
-      Serial.print(" CONNECTED -> ");
-      Serial.println(ip);
-      // Set ntp time to local
-      configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-      struct tm timeInfo;
-      if (getLocalTime(&timeInfo)) {
-        M5.Lcd.printf("NTP %s\r\n\r\n", ntpServer);
-        delay(500);
-      }
-      //disconnect WiFi
-      WiFi.disconnect(true);
-      WiFi.mode(WIFI_OFF);
-    }
-
-    void calc() {
-      struct tm tf;
-      if (!getLocalTime(&tf)) {
-        M5.Lcd.println("Failed to obtain time");
-        Serial.println("ERROR: Faild to obtain time");
-        return;
-      }
-      sprintf(str_stime, "%2d/%2d %2d:%02d", tf.tm_mon, tf.tm_mday, tf.tm_hour, tf.tm_min );
-      sprintf(str_ltime, "%04d-%02d-%02d %02d:%02d:%02d.000", 1900 + tf.tm_year, tf.tm_mon, tf.tm_mday, tf.tm_hour, tf.tm_min, tf.tm_sec );
-    }
-
-    char* getTimeSTR()
-    {
-      calc();
-      return str_stime;
-    }
-
-    // NTP時間の再設定を実施
-    void reflesh() {
-      // 更新時間を経過した？
-      unsigned int hour = millis() / rst_hour;
-      Serial.printf("ref: %d(%fd)\r\n", hour, rst_count );
-      // タイマーが戻った？（50日経過した？）
-      if ( hour == 0 && rst_count != 0 ) rst_count = 0;
-      if ( hour > rst_count ) {
-        uint8_t cnt = 20;
-        Serial.print("Reflesh TIME: set NTP ");
-        rst_count++;
-        WiFi.begin(ssid, key);
-        while (WiFi.status() != WL_CONNECTED) {
-          if ( cnt-- == 0 ) {
-            Serial.printf("\r\n ERROR Not Connect(%d) skip!!\ｒ\n", WiFi.status());
-            return;
-          }
-          delay(500);
-        }
-        configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-        WiFi.disconnect(true);
-        WiFi.mode(WIFI_OFF);
-        Serial.println(" .. done.");
-      }
-    }
-
-    void viewTime()
-    {
-      calc();
-      uint8_t txtSize = 2;
-      M5.Lcd.setTextColor( TFT_DARKGREY, TFT_BLACK);
-      M5.Lcd.setTextSize( txtSize );
-      uint16_t x = LCD_WIDTH - M5.Lcd.textWidth(str_stime);
-      uint16_t y = LCD_HEIGHT - txtSize * LCD_TXT_SIZE;
-      M5.Lcd.drawString( str_stime, x, y );
+    bool isExist(){
+      return use;
     }
 };
 
@@ -580,6 +308,43 @@ INF ini;
 // 描画回数
 uint32_t count = 0;
 
+// タイマー割込（ステータスバー）
+M5Timer sBar;
+bool sClock = false;
+
+
+/* ==================================================================================== STATUS BAR */
+void drawStatusBar(){
+
+    uint8_t   txtSize = 2;
+    uint16_t  txtFont = 1;
+
+    M5.Lcd.setTextColor( TFT_DARKGREY, TFT_BLACK);
+    M5.Lcd.setTextSize( txtSize );
+    M5.Lcd.setTextFont( txtFont );
+
+    // 時間の描画
+    String timestr = String( rtc.getTimeSTR() );
+    uint16_t x = LCD_WIDTH - M5.Lcd.textWidth( timestr.c_str() );
+    uint16_t y = LCD_HEIGHT - txtSize * LCD_TXT_SIZE;
+    
+    // 秒の描画
+    if( sClock=!sClock ) timestr.setCharAt( 8 ,' ' );
+    M5.Lcd.drawString( timestr, x, y );
+
+
+    // 本体温度の描画
+    if( env.isExist() ) {
+      char   buff[64];
+      env.update();
+      txtSize = 1;
+      y = LCD_HEIGHT - txtSize * LCD_TXT_SIZE-2;
+      sprintf( buff, "%5.1fC %5.1f%% %4dhPa", env.templ, env.humid, env.pres);
+      M5.Lcd.setTextSize( txtSize );
+      M5.Lcd.drawString( buff, 1, y );
+    }
+}
+
 /* =========================================================================================setup */
 void setup() {
   M5.begin();
@@ -630,10 +395,9 @@ void setup() {
 
   env.setup();
 
-  
   rtc.setAP(ini.wifi_ssid.c_str(), ini.wifi_key.c_str());
   rtc.setNTP();
-  rtc.viewTime();
+  drawStatusBar();
 
   M5.Lcd.fillScreen(TFT_BLACK);
   //grp.setView( 0,119, 320, 100 );
@@ -650,6 +414,11 @@ void setup() {
   chart.setTextSize( 1 );
   chart.drawFastVLine(CHART_WIDTH + 1, 0, 102, WHITE);
   //chart.drawFastVLine(CHART_WIDTH+2,0,102,WHITE);
+
+  // タイマー割込
+  sBar.setInterval(1000, drawStatusBar);
+
+  
 }
 
 // スプライト上にドットを描く
@@ -668,11 +437,11 @@ int16_t plot2Sprite( uint8_t cnt, float dt, float min, float max, uint32_t color
   return y;
 }
 
-
 /* ===========================================================================================loop */
 void loop() {
   M5.update();
   String buff;
+  sBar.run();
 
   // スプライトを描画
   // スプライトは書いたままだと表示されなくpushSpriteにて初めて表示
@@ -699,8 +468,6 @@ void loop() {
 
   // ボタンAが押された時の処理
   if (M5.BtnA.wasPressed()) {
-    M5.Lcd.setCursor(5, 0);
-    M5.Lcd.print("Transmitted : hello");
     // "Hello"をラズパイへ送信する
     //Serial2.write("hello");
     //Serial.println("hello");
@@ -719,9 +486,7 @@ void loop() {
     //grp.clear();
   }
 
-  //本体センサー表示
-  env.view();
 
-  // 時刻表示
-  rtc.viewTime();
+  //ステータスバー更新
+  //drawStatusBar();
 }
