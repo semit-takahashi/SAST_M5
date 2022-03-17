@@ -10,6 +10,11 @@
  */
 #include "netRTC.h"
 
+/**
+ * @brief WiFiアクセスポイント情報を設定
+ * @param wifi_ssid 
+ * @param wifi_key 
+ */
 void netRTC::setAP( const char *wifi_ssid, const char *wifi_key )
 {
   ssid = wifi_ssid;
@@ -19,6 +24,12 @@ void netRTC::setAP( const char *wifi_ssid, const char *wifi_key )
   Serial.println( key );
 }
 
+/**
+ * @brief NTPを設定して時刻を取得
+ * 
+ * @return true 
+ * @return false 
+ */
 bool netRTC::setNTP()
 {
   if ( !IsSet ) return false;
@@ -35,8 +46,7 @@ bool netRTC::setNTP()
       WiFi.mode(WIFI_OFF);
       M5.Lcd.printf(" Connect ERROR! (%d)\r\n", WiFi.status());
       Serial.printf(" Connect ERROR! (%d)\r\n", WiFi.status());
-      // BEEP!!
-      delay( 10000 );
+      beep();
       return false;
     }
     delay(500);
@@ -44,37 +54,56 @@ bool netRTC::setNTP()
     Serial.print(".");
   }
   ip = WiFi.localIP();
-  M5.Lcd.print(" CONNECTED -> ");
-  M5.Lcd.println(ip);
-  Serial.print(" CONNECTED -> ");
-  Serial.println(ip);
+  M5.Lcd.print(" CONNECTED\r\n -> "); M5.Lcd.println(ip);
+  Serial.print(" CONNECTED\r\n -> "); Serial.println(ip);
+  
   // Set netRTC time to local
+  IsSet = true;
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-  struct tm timeInfo;
-  if (getLocalTime(&timeInfo)) {
-    M5.Lcd.printf("netRTC %s\r\n\r\n", ntpServer);
-    delay(500);
-  }
+  calc();
+  M5.Lcd.println( str_stime );
+  Serial.println( str_stime );
+  //delay(1000);
+
   //disconnect WiFi
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
 }
 
+/**
+ * @brief 現在時刻を計算して、文字列を生成
+ * 
+ */
 void netRTC::calc() {
-  struct tm tf;
   if (!getLocalTime(&tf)) {
     M5.Lcd.println("Failed to obtain time");
     Serial.println("ERROR: Faild to obtain time");
     return;
   }
-  sprintf(str_stime, "%2d/%2d %2d:%02d", tf.tm_mon, tf.tm_mday, tf.tm_hour, tf.tm_min );
-  sprintf(str_ltime, "%04d-%02d-%02d %02d:%02d:%02d.000", 1900 + tf.tm_year, tf.tm_mon, tf.tm_mday, tf.tm_hour, tf.tm_min, tf.tm_sec );
+  sprintf(str_stime, "%2d/%2d %2d:%02d", tf.tm_mon+1, tf.tm_mday, tf.tm_hour, tf.tm_min );
+  sprintf(str_ltime, "%04d-%02d-%02d %02d:%02d:%02d.000", 1900 + tf.tm_year, tf.tm_mon+1, tf.tm_mday, tf.tm_hour, tf.tm_min, tf.tm_sec );
+  minute = tf.tm_hour * 60 + tf.tm_min;
 }
 
-const char *netRTC::getTimeSTR()
-{
-  calc();
+const char* netRTC::getTimeSTR(){
   return str_stime;
+}
+
+uint16_t netRTC::getMinute() {
+  return minute;
+}
+
+
+/**
+ * @brief UNIX Timeを取得 LONG型 
+ * @return time_t 
+ */
+time_t netRTC::getTimeRAW()
+{
+  //setTime();
+  time_t t;
+  time(&t);
+  return t;
 }
 
 // netRTC時間の再設定を実施
@@ -91,7 +120,8 @@ void netRTC::reflesh() {
     WiFi.begin(ssid, key);
     while (WiFi.status() != WL_CONNECTED) {
       if ( cnt-- == 0 ) {
-        Serial.printf("\r\n ERROR Not Connect(%d) skip!!\ｒ\n", WiFi.status());
+        Serial.println("\r\nERROR Not Connect skip!!\r\n");
+        Serial.println(WiFi.status());
         return;
       }
       delay(500);
@@ -101,6 +131,15 @@ void netRTC::reflesh() {
     WiFi.mode(WIFI_OFF);
     Serial.println(" .. done.");
   }
+}
+
+void netRTC::beep()
+{
+  M5.Speaker.begin();       // 呼ぶとノイズ(ポップ音)が出る 
+  M5.Speaker.setVolume(1);  // 0は無音、1が最小、8が初期値(結構大きい)
+  M5.Speaker.beep();        // ビープ開始
+  delay(100);               // 100ms鳴らす(beep()のデフォルト)
+  M5.Speaker.mute();        //　ビープ停止
 }
 
 /*

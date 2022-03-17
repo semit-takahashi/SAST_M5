@@ -1,42 +1,118 @@
 /**
- * @file SAST_M5.ino
- * @author F.Takahashi (fumihito.takahashi@sem-it.com)
- * @brief 
- * @version 0.1
- * @date 2021-08-20
- * 
- * @copyright Copyright (c) 2021
- * 
- */
+ *  @file SAST_M5.ino
+ *  @author F.Takahashi (fumihito.takahashi@sem-it.com)
+ *  @brief
+ *  @version 0.1
+ *  @date 2022-03-07
+ *  @copyright Copyright (c) 2022 SEM-IT 
+*/
+#define _VERSION_ "2.0.0 20220307"
+//#define DEBUG
+//#define TEST
 
 #include <M5Stack.h>
-#include <WiFi.h>
-#include <IniFile.h>
-#include "time.h"
-#include "utility/M5Timer.h"
+#include "SAST_M5.h"
 
 #include <Wire.h>
-#include "Adafruit_Sensor.h"
-#include <Adafruit_BMP280.h>
-#include "UNIT_ENV.h"
+#include "UNIT_ENV.h"   //環境センサーIII用
 
 #include "INF.h"
 #include "netRTC.h"
 
-const uint16_t LCD_WIDTH      = 320;
-const uint16_t LCD_HEIGHT     = 240;
-const uint16_t LCD_TXT_SIZE = 7;
-const uint16_t CHART_WIDTH    = 250;
-const uint16_t CHART_HEIGHT   = 100;
+// MUTEX（画面描画時利用）
+portMUX_TYPE mutex = portMUX_INITIALIZER_UNLOCKED;
 
-//const char *WF_SSID = "aterm-0eb815-g";
-//const char *WF_KEY  = "23d4a4031f7ab";
 
-/*===================================================== Class ENV II SENS ===*/
+// センサーデータ
+class SensData {
+  public:
+    float   m_templ = 0.0;
+    float   m_humid = 0.0;
+    float   m_press = 0.0;
+    float   m_als   = 0.0;
+    uint8_t m_rssi = 255;
+    int8_t  m_batt = -1;   // Batter% (-1 unknown)
+    float   m_minute = 0;
+    struct tm  m_time;
+  private:
+    SensData  *node = nullptr;
+
+  public:
+    // センサーデータをリンク
+    void Append ( SensData *data ) {
+      if ( node != nullptr )
+        node->Append( data );
+      else
+        node = data;
+      return;
+    }
+
+    // 次があれば返す
+    SensData *HasNext () {
+      if ( node != nullptr ) return node;
+      return NULL;
+    }
+
+    // 時刻設定
+    void setTime( struct tm stime ) {
+      m_time = stime;
+      m_minute = m_time.tm_hour * 60 + m_time.tm_min + (float)m_time.tm_sec / 60.0;
+    }
+
+    // 設定分を返す
+    float getMinute() {
+      return m_minute;
+    }
+
+    // コンストラクタ
+    SensData() {
+    }
+
+    // デストラクタ
+    ~SensData() {
+      if ( node != nullptr ) {
+        delete node;
+        return;
+      }
+      //Serial.printf("delete %x\r\n",this );
+    }
+
+#ifdef TEST
+    static void test( netRTC *rtc) {
+      uint32_t heap_start = esp_get_free_heap_size();
+
+      Serial.println();
+      Serial.printf("SensData TEST - start : %d\r\n", heap_start);
+
+      SensData* ptr = new SensData();
+      ptr->setTime( rtc->getTimeStruct() );
+      //Serial.printf("d(0000) %x\r\n", ptr);
+      for (int i = 1; i < 100; i++ ) {
+        SensData *nPtr = new SensData();
+        //Serial.printf("d(%04d) %x\r\n",i, nPtr);
+        nPtr->setTime( rtc->getTimeStruct() );
+        ptr->Append(nPtr);
+      }
+      //Serial.println("\r\nSensData TEST  - dump ");
+      Serial.printf("Free Heap Size = %d\r\n", esp_get_free_heap_size());
+      SensData *buff = ptr;
+      while ( buff != NULL) {
+        //Serial.printf(" buff %x -> time(%f)\r\n", *buff, buff->getMinute() );
+        buff = buff->HasNext();
+      }
+      delete ptr;
+      uint32_t heap_done = heap_done = esp_get_free_heap_size();
+      Serial.printf("SensData TEST  - done : %d\r\n", heap_done  );
+      Serial.printf("Free Heap diff = %d\r\n", heap_start - heap_done);
+    }
+#endif
+};
+
+/*===================================================== Class ENV III SENS ===*/
 class envSens {
   private:
     SHT3X   sht30;
-    Adafruit_BMP280 bme;
+    QMP6988 qmp6988;
     bool    use = false;
 
   public:
@@ -46,25 +122,36 @@ class envSens {
 
   public:
     bool setup() {
+#if 1
+      // ENV Sens III
+      if( !qmp6988.init() ) {
+        Serial.println("Could not find a valid BQMP6988 sensor, check wiring!");
+        use = false;
+        return use;
+      }
+#else
+      // ENV Sens II
       if ( !bme.begin(0x76) ) {
         Serial.println("Could not find a valid BMP280 sensor, check wiring!");
         use = false;
         return use;
       }
-      Serial.println("Ready! ENV Sensor!");
+#endif
+      Serial.println("Ready! ENV III Sensor!");
       use = true;
+      update();
       return use;
     }
 
     void update() {
       if ( !use ) return;
-      pres = bme.readPressure() / 100.0;
+      pres = qmp6988.calcPressure() / 100.0;
       if (sht30.get() == 0) {
         templ = sht30.cTemp;
         humid = sht30.humidity;
       }
     }
-    bool isExist(){
+    bool isExist() {
       return use;
     }
 };
@@ -79,7 +166,7 @@ class L902J {
     float     templ = 0.0;    // 温度（小数点1桁）
     float     humid = 0.0;    // 湿度（小数点1桁）
     uint16_t  pres = 0;       // 気圧（hPa）
-    float     lux = 0;        // 照度（0〜XXXX lx） ALS：Ambient Light Sensor :
+    float     als = 0;        // 照度（0〜XXXX lx） ALS：Ambient Light Sensor :
     uint16_t  ps = 0;         // 近接（）PS：Proximity Switch
     float     batt = 0.0;     // バッテリー電圧V
     String    dBuff;          // 受信データのバッファ
@@ -141,7 +228,7 @@ class L902J {
       // Ambient Light（LUX）
       cur = dt.indexOf(",", old );
       buff = dt.substring(old, cur);
-      lux = buff.toFloat();
+      als = buff.toFloat();
       old = cur + 1;
 
       // Proximity（近接距離）
@@ -170,7 +257,7 @@ class L902J {
       sprintf( sens, "%4x(%2x) %3d [%3.1fV]", src_addr, seq, rssi, batt);
       sprintf( dat1, "%5.1f C", templ);
       sprintf( dat2, "%5.1f %%", humid);
-      sprintf( dat3, "%4.0f Lx", lux);
+      sprintf( dat3, "%4.0f Lx", als);
       M5.Lcd.setTextColor( DARKGREY, BLACK );
       M5.Lcd.setCursor( 2, 2 );
       M5.Lcd.setTextSize( 2 );
@@ -206,7 +293,7 @@ class L902J {
       d.printf("templ %4.1f\r\n", templ);
       d.printf("humid %4.1f\r\n", humid);
       d.printf("press %4d\r\n", pres);
-      d.printf("lux   %6.1f\r\n", lux);
+      d.printf("als   %6.1f\r\n", als);
       d.printf("ps    %3d\r\n", ps);
       d.printf("BATT  %4.1f\r\n", batt);
 
@@ -238,136 +325,372 @@ class L902J {
 
     void time2str( char* buff )
     {
-      sprintf(buff, "%04d-%02d-%02d %02d:%02d:%02d.000", 1900 + atime.tm_year, atime.tm_mon, atime.tm_mday, atime.tm_hour, atime.tm_min, atime.tm_sec );
+      sprintf(buff, "%04d-%02d-%02d %02d:%02d:%02d.000",
+              1900 + atime.tm_year, atime.tm_mon, atime.tm_mday,
+              atime.tm_hour, atime.tm_min, atime.tm_sec );
     }
 };
 
-/* ==================================== 描画クラス === */
-class DrawGraph {
+/* ============================================================================================================ 描画クラス === */
+class drawLCD {
+  public:
+    // Screen Area DATA
+    const uint16_t LCD_WIDTH      = 320;
+    const uint16_t LCD_HEIGHT     = 240;
+    const uint16_t LCD_TXT_SIZE   = 7;
+    const uint16_t CHART_WIDTH    = 320;
+    const uint16_t CHART_HEIGHT   = 113;
+    const uint8_t  CHART_POS_X    = 0;
+    const uint8_t  CHART_POS_Y    = 111;
+    const uint16_t PAN_WIDTH      = 106;
+    const uint16_t PAN_HEIGHT     = 111;
+    const uint8_t  PAN_POS_X0     = 0;
+    const uint8_t  PAN_POS_X1     = 107;
+    const uint8_t  PAN_POS_X2     = 213;
+
+    //background color
+    const uint16_t  BGC_PAN_NOR =  M5.Lcd.color565( 0x00, 0x70, 0x33 );
+    const uint16_t  BGC_PAN_LOW =  M5.Lcd.color565( 0x00, 0x14, 0x62 );
+    const uint16_t  BGC_PAN_HIG = M5.Lcd.color565( 0xf2, 0x00, 0x51 );
+    const uint16_t  BGC_GRAP    = M5.Lcd.color565( 0x00, 0x38, 0x65 );
+    const uint16_t  BGC_STAT    = M5.Lcd.color565( 0x00, 0x00, 0x7b );
+
   private:
+    TFT_eSprite chart1      = TFT_eSprite(&M5.Lcd);   // 温度グラフ
+    TFT_eSprite panel1      = TFT_eSprite(&M5.Lcd);   // パネル センサー1
+    TFT_eSprite panel2      = TFT_eSprite(&M5.Lcd);   // パネル センサー2
+    TFT_eSprite panel3      = TFT_eSprite(&M5.Lcd);   // パネル センサー3
+
+
+    uint16_t    View_Mode     = 0;      // 画面表示モード
+    uint16_t    View_Panel    = 0;      // パネル表示ページ
+    uint16_t    View_Graph    = 0;      // グラフ表示ページ
+
     uint16_t x0, y0, x1, y1, wd, ht = 0;
     uint16_t bg_color = TFT_NAVY;       // 背景色
     uint16_t bd_color = TFT_WHITE;    // 境界色
 
+    // must be include <Ticker.h>
+    Ticker  drawTick;
+    bool    drawAuto = false;
+
   public:
-    DrawGraph() {}
-    DrawGraph( uint16_t x_0, uint16_t y_0, uint16_t width, uint16_t height ) {
-      setView( x_0, y_0, width, height );
+    void init()
+    {
+      Serial.println("drawLCD::init()");
+      // グラフエリア
+      chart1.setColorDepth(8);
+      chart1.createSprite( CHART_WIDTH, CHART_HEIGHT );
+      chart1.pushImage( 0, 0, CHART_WIDTH, CHART_HEIGHT, bg_graph );
+      chart1.setTextColor( TFT_WHITE );
+      // パネル1
+      panel1.setColorDepth(8);
+      panel1.createSprite( PAN_WIDTH, PAN_HEIGHT );
+      panel1.pushImage( 0, 0, PAN_WIDTH, PAN_HEIGHT, bg_pan_nor );
+      panel1.setTextColor( TFT_WHITE );
+      // パネル2
+      panel2.setColorDepth(8);
+      panel2.createSprite( PAN_WIDTH, PAN_HEIGHT );
+      panel2.pushImage( 0, 0, PAN_WIDTH, PAN_HEIGHT, bg_pan_nor );
+      panel2.setTextColor( TFT_WHITE );
+      // パネル3
+      panel3.setColorDepth(8);
+      panel3.createSprite( PAN_WIDTH, PAN_HEIGHT );
+      panel3.pushImage( 0, 0, PAN_WIDTH, PAN_HEIGHT, bg_pan_nor );
+      panel3.setTextColor( TFT_WHITE );
+
+      // 自動更新
+      // drawTick.attach( 10 * 1000, autoDraw );
+
     }
 
-    void setView( uint16_t x_0, uint16_t y_0, uint16_t width, uint16_t height ) {
-      x0 = x_0;
-      y0 = y_0;
-      x1 = x_0 + width;
-      y1 = y_0 + height;
-      wd = width;
-      ht = height;
-      Serial.printf("setView: %d, %d, %d, %d\r\n", x0, y0, x1, y1);
+
+    void draw() {
+      //uint32_t  millis_start = millis();
+      Serial.println("drawLCD::draw()");
+
+      // スプライトは書いたままだと表示されなくpushSpriteにて初めて表示
+      portENTER_CRITICAL(&mutex);       // LCD描画開始
+
+      // Graph View
+      chart1.pushSprite( CHART_POS_X, CHART_POS_Y );
+
+      // DataPanel View
+      panel1.pushSprite( PAN_POS_X0, 0 );
+      panel2.pushSprite( PAN_POS_X1, 0 );
+      panel3.pushSprite( PAN_POS_X2, 0 );
+      //Serial.println("drawLCD::draw() -- end");
+
+      //Serial.printf("draw() millis:%d\r\n", millis() - millis_start);
+      portEXIT_CRITICAL(&mutex);        // LCD描画終了
     }
 
-    void clear()     {
-      M5.Lcd.setTextSize(2);
-      M5.Lcd.fillScreen(TFT_BLACK);
-      M5.Lcd.setTextColor(TFT_WHITE);
-      M5.Lcd.setCursor(0, 0);
-      // Rect -> ( x, y, width, height )
-      M5.Lcd.fillRect( x0, y0, wd, ht , bg_color );
-      M5.Lcd.drawRect( x0, y0, wd, ht , bd_color );
+    void update_test( float templ, float humid, float press, float als , uint16_t minute, SENS_t type) {
+      Serial.printf("update_test() t=%f h=%f p=%f a=%f", templ, humid, press, als );
+      drawPanel( &panel1, templ, humid, press, als , PANEL_t::NORM , SENS_t::TH1);
+      drawGraph( &chart1, templ, TFT_YELLOW, minute, GRAPH_t::TEMPL );
     }
 
-    void plot( uint16_t count, float dt, float min, float max, uint16_t color ) {
-      uint16_t x, y;
-
-      x = count;
-      y = y1 - ( ht / ( max - min ) * dt );
-      Serial.printf("plot( %d, %f ) -> ( %d, %d )\r\n", count, dt, x , y );
-      M5.Lcd.drawPixel( x , y , color );
+    void update_test2( float templ, float humid, float press, float als , uint16_t minute, SENS_t type) {
+      Serial.printf("update_test2() t=%f h=%f p=%f a=%f", templ, humid, press, als );
+      drawPanel( &panel2, templ, humid, press, als , PANEL_t::NORM, SENS_t::Lazurite );
+      drawGraph( &chart1, templ, TFT_YELLOW, minute, GRAPH_t::TEMPL );
     }
 
+    void drawPanel( TFT_eSprite *pan, float templ, float humid, float press, float als , PANEL_t mode, SENS_t type)
+    {
+      char    str_templ[5];
+      char    str_humid[5];
+      char    str_templ_l[2];
+      char    str_humid_l[2];
+      char    str_press[5];
+      char    str_als[5];
+      sprintf( str_templ,   "%3d", (int)templ );
+      sprintf( str_humid,   "%3d", (int)humid );
+      sprintf( str_templ_l, "%1d", ftoa1(templ) );
+      sprintf( str_humid_l, "%1d", ftoa1(humid) );
+      sprintf( str_press,   "%4d", (int)press );
+      sprintf( str_als,     "%4d", (int)als );
+      uint16_t fC = TFT_WHITE;
+      uint16_t bC = BGC_PAN_NOR;
+
+      Serial.printf("mode = %d PAN=%x \r\n", (int)mode, PANEL_img[(int)mode]);
+      pan->pushImage( 0, 0, PAN_WIDTH, PAN_HEIGHT, PANEL_img[(int)mode] );
+
+#ifdef DEBUG
+      Serial.printf("templ : %s\r\n", str_templ );
+      Serial.printf("templL: %s\r\n", str_templ_l );
+      Serial.printf("humid : %s\r\n", str_humid );
+      Serial.printf("humidL: %s\r\n", str_humid_l );
+      Serial.printf("Press : %s\r\n", str_press );
+      Serial.printf("AVS   : %s\r\n", str_als );
+#endif
+
+      // draw TEMPLATURE
+      pan->drawChar(  2, 24 , str_templ[0], fC, bC, 3 );
+      pan->drawChar( 17, 24 , str_templ[1], fC, bC, 4 );
+      pan->drawChar( 43, 23 , str_templ[2], fC, bC, 4 );
+      pan->drawChar( 62, 40 , '.',          fC, bC, 2 );
+      pan->drawChar( 74, 40 , str_templ_l[0], fC, bC, 2 );
+      pan->drawChar( 93, 40 , 'C',          fC, bC, 2 );
+      pan->drawChar( 84, 25 , '.',          fC, bC, 2 );
+
+      // draw HUMIDITY
+      pan->drawChar( 33, 65 , str_humid[0], fC, bC, 3 );
+      pan->drawChar( 51, 65 , str_humid[1], fC, bC, 3 );
+      pan->drawChar( 71, 65 , str_humid[2], fC, bC, 3 );
+      pan->drawChar( 93, 70 , '%', fC, bC, 2 );
+
+      if ( type == SENS_t::TH1 ) {
+        // draw Pressure
+        pan->drawChar( 40, 96 , str_press[0], fC, bC, 2 );
+        pan->drawChar( 52, 96 , str_press[1], fC, bC, 2 );
+        pan->drawChar( 64, 96 , str_press[2], fC, bC, 2 );
+        pan->drawChar( 76, 96 , str_press[3], fC, bC, 2 );
+        pan->drawChar( 87, 101 , 'h', fC, bC, 1 );
+        pan->drawChar( 94, 101 , 'P', fC, bC, 1 );
+        pan->drawChar(100, 101 , 'a', fC, bC, 1 );
+      } else {
+        pan->drawChar( 40, 96 , str_als[0], fC, bC, 2 );
+        pan->drawChar( 52, 96 , str_als[1], fC, bC, 2 );
+        pan->drawChar( 64, 96 , str_als[2], fC, bC, 2 );
+        pan->drawChar( 76, 96 , str_als[3], fC, bC, 2 );
+        pan->drawChar( 94, 101 , 'L', fC, bC, 1 );
+        pan->drawChar(100, 101 , 'X', fC, bC, 1 );
+      }
+
+      //BATT
+      TFT_eSprite batt = TFT_eSprite(pan);
+      batt.createSprite( BATT_Width, BATT_Height );
+      batt.pushImage( 0, 0, BATT_Width, BATT_Height, BATT_img[0] );
+      batt.pushSprite( 86, 3, TFT_GREEN );
+      //batt.deleteSprite();
+
+      //ANT
+      TFT_eSprite antn = TFT_eSprite(pan);
+      antn.createSprite( ANT_Width, ANT_Height );
+      antn.pushImage( 0, 0, ANT_Width, ANT_Height, ANT_img[0] );
+      antn.pushSprite( 64, 3, TFT_GREEN );
+      //antn.deleteSprite();
+
+    }
+
+    void drawGraph( TFT_eSprite *pan, float dt , uint16_t clr, uint16_t minute, GRAPH_t mode)
+    {
+      switch ( mode ) {
+        // 温度グラフ
+        case GRAPH_t::TEMPL:
+          // 時刻から座標計算（温度の場合）
+          uint16_t x = 21 + (minute * 0.194444);
+          uint16_t y = 87 - (uint16_t)(dt / 0.555555);
+          // 点の描画
+          Serial.printf(" drawPixcel ( %d, %d )\r\n", x, y );
+          pan->drawPixel( x, y, clr );
+          break;
+      }
+    }
+
+
+
+
+    void setAutoDraw( bool flag ) {
+      drawAuto = flag;
+    }
+
+    void change_Panel() {
+      View_Panel = View_Panel % 2;
+    }
+
+    void change_Mode() {
+      View_Mode = View_Mode % 3;
+    }
+
+    void change_Graph() {
+      View_Graph = View_Graph % 3;
+    }
+
+    void Update()
+    {
+      // センサーデータのパネルとグラフ書き込み
+      // 表示順 設定
+      // パネルデータ描画（3パネル）
+      //    閾値確認して、必要なパネルに切り替える
+      //    データのdraw
+
+      // グラフ種別確認
+      // 日付が変わったかを確認
+      // グラフデータ描画
+    }
+
+    void reDraw()
+    {
+      draw();
+    }
+
+  private:
+    void autoDraw() {
+      if ( !drawAuto ) return;
+      Update();
+      draw();
+    }
+
+    uint8_t ftoa1( float val )
+    {
+      return (uint8_t)( (val - (int)val ) * 10 );
+    }
 };
 
 /* ======================================================================================= Globals */
 // 受信データ最新
 L902J n_data;
 
+//環境センサ
+envSens env;
+
 // 時計
 netRTC rtc;
 
-// グラフ
-//rawGraph grp;
-
-//グラフスプライト
-TFT_eSprite chart = TFT_eSprite(&M5.Lcd);
-
-//環境センサ
-envSens env;
+// 画面クラス
+drawLCD LCD;
 
 // INI呼び出し
 INF ini;
 
+
 // 描画回数
 uint32_t count = 0;
 
-// タイマー割込（ステータスバー）
-M5Timer sBar;
-bool sClock = false;
+// 画面輝度
+const uint8_t brightness[] = { 0, 5, 20 ,80 ,200 };
+uint8_t light = 4;
 
+// タイマー割込
+Ticker  int_SBar;
+bool sClock = false;    // 秒点滅用フラグ
+Ticker  int_EnvSens;
+
+/* ==================================================================================== ENV Sensor BAR */
+void updateEnvSensor() {
+  if ( env.isExist() ) {
+    env.update();
+    LCD.update_test( env.templ , env.humid, env.pres, 0.0, rtc.getMinute(), SENS_t::TH1 );
+    LCD.draw();
+  }
+}
 
 /* ==================================================================================== STATUS BAR */
-void drawStatusBar(){
+void drawStatusBar() {
+  uint8_t   txtSize = 2;
+  uint16_t  txtFont = 1;
+  uint16_t  x;
+  uint16_t  y;
+  char   buff[64];
 
-    uint8_t   txtSize = 2;
-    uint16_t  txtFont = 1;
+  // 更新は別途タイマー割込で（時間がかかりすぎるため）
+  //env.update();
 
-    M5.Lcd.setTextColor( TFT_DARKGREY, TFT_BLACK);
-    M5.Lcd.setTextSize( txtSize );
-    M5.Lcd.setTextFont( txtFont );
+  // 日時
+  String timestr = String( rtc.getTimeSTR() );
+  if ( sClock = !sClock ) timestr.setCharAt( 8 , ' ' ); // 秒の描画（書いたり消したり交互）
 
-    // 時間の描画
-    String timestr = String( rtc.getTimeSTR() );
-    uint16_t x = LCD_WIDTH - M5.Lcd.textWidth( timestr.c_str() );
-    uint16_t y = LCD_HEIGHT - txtSize * LCD_TXT_SIZE;
-    
-    // 秒の描画
-    if( sClock=!sClock ) timestr.setCharAt( 8 ,' ' );
-    M5.Lcd.drawString( timestr, x, y );
+  //バッテリー
+  String battstr = String( M5.Power.getBatteryLevel() );
+  battstr += String( "%" );
+
+  // 本体側環境
+  String envstr;
+  if ( env.isExist() ) {
+#ifdef DEBUG
+    sprintf( buff, "%3.0fC %3.0f%% %4dhPa %d", env.templ, env.humid, env.pres, esp_get_free_heap_size());
+#else
+    sprintf( buff, "%3.0fC %3.0f%% %4dhPa", env.templ, env.humid, env.pres);
+#endif
+    envstr = String( buff );
+  }
+
+  // クリティカルセクション（LCD描画）
+  portENTER_CRITICAL_ISR(&mutex);
+
+  M5.Lcd.setTextColor( TFT_DARKGREY, BGC_STAT );
+  M5.Lcd.setTextFont( 1 );
+  M5.Lcd.setTextSize( txtSize );
+  x = LCD_WIDTH - M5.Lcd.textWidth( timestr.c_str() );
+  y = LCD_HEIGHT - txtSize * LCD_TXT_SIZE;
+  M5.Lcd.drawString( timestr, x, y );
+
+  txtSize = 1;
+  M5.Lcd.setTextSize( txtSize );
+  y = LCD_HEIGHT - txtSize * LCD_TXT_SIZE - 4 ;
+  M5.Lcd.drawString( battstr, 1, y );
+
+  if ( envstr.length() != 0 ) {
+    M5.Lcd.drawString( envstr, 30, y );
+  }
+  // クリティカルセクション終了
+  portEXIT_CRITICAL_ISR(&mutex);
+
+  //Serial.printf("drawStatus() %d ms\r\n", millis()-millis_start);
+
+}
 
 
-    // 本体温度の描画
-    if( env.isExist() ) {
-      char   buff[64];
-      env.update();
-      txtSize = 1;
-      y = LCD_HEIGHT - txtSize * LCD_TXT_SIZE-2;
-      sprintf( buff, "%5.1fC %5.1f%% %4dhPa", env.templ, env.humid, env.pres);
-      M5.Lcd.setTextSize( txtSize );
-      M5.Lcd.drawString( buff, 1, y );
-    }
+/* === 画面輝度設定 4~0 === */
+
+void setBrightness( int brt = -1 )
+{
+  if( brt == -1 ) {
+    if ( light-- == 0 ) light = 4;
+  } else {
+    light = brt;
+  }
+  Serial.printf("Brightness %d\r\n",light);
+  M5.Lcd.setBrightness(brightness[light]);
 }
 
 /* =========================================================================================setup */
 void setup() {
   M5.begin();
   M5.Power.begin();
-
-#if 0
-  // SD card CHECK
-  if (!SD.begin()) {
-    M5.Lcd.println(" Please Insert SD-CARD and RESET! ");
-    while (1) ;
-  }
-
-  // 漢字フォント読み込み
-  M5.Lcd.println("Load font ... ");
-  String FontName = "/vlw/genshin-regular-20pt";
-  M5.Lcd.loadFont( FontName, SD );
-
-  // 画面初期設定
-  M5.Lcd.fillScreen(TFT_WHITE);
-  M5.Lcd.setTextColor(TFT_BLACK);
-  M5.Lcd.setCursor(5, 5);
-  M5.Lcd.printf("SAST日本語版〜開始！");
-#endif
 
   // シリアル通信機能の設定
   //Serial.begin(115200);
@@ -379,50 +702,55 @@ void setup() {
   // Serial2.begin(unsigned long baud, uint32_t config, int8_t rxPin, int8_t txPin, bool invert)
   Serial2.begin(115200, SERIAL_8N1, 16, 17);
 
-  Serial.println("START");
+  // 初期画面設定
+  setBrightness( 2 );
+  M5.Lcd.setTextFont(2);
+  M5.Lcd.setTextSize(1);
+  M5.Lcd.fillScreen(TFT_NAVY);
+  M5.Lcd.setTextColor(TFT_WHITE, TFT_NAVY );
+  M5.Lcd.setCursor(2, 2);
+  Serial.printf("SAST M5 Ver.%s\r\n", _VERSION_ );
+  M5.Lcd.printf("SAST M5 Ver.%s\r\n", _VERSION_ );
+  if (!M5.Power.canControl()) M5.Lcd.println(" ~~ Can't Power Control ~~");
+  delay(500);
 
-#if 0
-  // フォントアンロード 不要
-  if ( M5.Lcd.fontsLoaded() ) {
-    M5.Lcd.unloadFont();
+  // 時刻設定(Wi-Fi接続)
+  for( int i=0; i < 3; i++ ) {
+    st_wifi ap;
+    ap = ini.getWiFi( i );
+    rtc.setAP( ap.ssid.c_str(), ap.key.c_str() );
+    if( rtc.setNTP() ) {
+      continue;
+    }
   }
-#endif
 
-  M5.Lcd.setTextSize(2);
-  M5.Lcd.fillScreen(TFT_BLACK);
-  M5.Lcd.setTextColor(TFT_WHITE);
-  M5.Lcd.setCursor(0, 0);
-
+  // 本体付属センサー初期化（ENV II）
   env.setup();
 
-  rtc.setAP(ini.wifi_ssid.c_str(), ini.wifi_key.c_str());
-  rtc.setNTP();
-  drawStatusBar();
-
+  // 初期画面設定
   M5.Lcd.fillScreen(TFT_BLACK);
-  //grp.setView( 0,119, 320, 100 );
-  //grp.clear();
+  M5.Lcd.fillScreen(BGC_STAT);
+  //M5.Lcd.drawBmpFile( SD, "/SAST_BACK.bmp", 0,0 );
 
-  // =============== 試しのスプライト
-  chart.setColorDepth(8);
-  chart.createSprite( LCD_WIDTH, CHART_HEIGHT + 2 );
-  chart.fillSprite( TFT_WHITE );
-  chart.fillRect( 1, 1, LCD_WIDTH - 2, CHART_HEIGHT, TFT_NAVY );
-  chart.setScrollRect( 1, 1, CHART_WIDTH, CHART_HEIGHT, TFT_NAVY );
-  chart.setTextColor( TFT_WHITE );
-  chart.setCursor( 1, 1 );
-  chart.setTextSize( 1 );
-  chart.drawFastVLine(CHART_WIDTH + 1, 0, 102, WHITE);
-  //chart.drawFastVLine(CHART_WIDTH+2,0,102,WHITE);
+  // LCD初期化
+  LCD.init();
+  LCD.draw();
 
-  // タイマー割込
-  sBar.setInterval(1000, drawStatusBar);
+  // タイマー割込設定　ステータスバー更新
+  int_SBar.attach(1, drawStatusBar);
 
-  
+  // タイマー割込設定　ENVIIセンサー（割込負荷分散）
+  if ( env.isExist() ) {
+    int_EnvSens.attach( 60, updateEnvSensor );
+    // 初期更新
+    updateEnvSensor();
+  }
 }
 
-// スプライト上にドットを描く
-int16_t plot2Sprite( uint8_t cnt, float dt, float min, float max, uint32_t color , int16_t oy = -1 ) {
+/*
+  #if 0
+  // スプライト上にドットを描く
+  int16_t plot2Sprite( uint8_t cnt, float dt, float min, float max, uint32_t color , int16_t oy = -1 ) {
   uint16_t y;
   y = CHART_HEIGHT  -  ( CHART_HEIGHT / ( max - min ) * dt );
   if ( CHART_HEIGHT < dt ) dt = CHART_HEIGHT;
@@ -435,58 +763,60 @@ int16_t plot2Sprite( uint8_t cnt, float dt, float min, float max, uint32_t color
     chart.drawLine( CHART_WIDTH - 2, oy, CHART_WIDTH - 1, y, color );
   }
   return y;
-}
-
+  }
+  #endif
+*/
 /* ===========================================================================================loop */
 void loop() {
   M5.update();
-  String buff;
-  sBar.run();
 
-  // スプライトを描画
-  // スプライトは書いたままだと表示されなくpushSpriteにて初めて表示
-  chart.pushSprite( 0, 120 );
+#ifdef TEST
+  SensData::test( &rtc );
+#endif
 
   // シリアル通信を受信したときの処理
+  String buff;
   if (Serial2.available()) {
     buff = Serial2.readStringUntil('\n');
     buff.trim();
     if ( buff.length() != 0 ) {
       //Serial.println("Recv Data");
+
       n_data.decode( buff );
-      n_data.view();
-      if ( count++ % 60 == 0 ) {
-        chart.drawFastVLine(CHART_WIDTH - 1, 0, CHART_HEIGHT, TFT_DARKGREEN);
-        chart.drawFastVLine(CHART_WIDTH - 1, 0, 5, TFT_WHITE);
-      }
-      plot2Sprite(n_data.seq, n_data.templ, 0, 40, TFT_YELLOW);
-      plot2Sprite(n_data.seq, n_data.humid, 0, 100, TFT_BLUE);
-      plot2Sprite(n_data.seq, n_data.lux, 0, 1400, TFT_GREEN);
-      chart.scroll( -2 );
+      LCD.update_test2( n_data.templ, n_data.humid, 0.0, n_data.als, rtc.getMinute(), SENS_t::Lazurite );
+      LCD.draw();
+
+
+      // アドレス毎にデータ送信
     }
+
   }
+
+  // IBS-TH!のデータ受信
+  // スキャンしてデータ取得
+  // MAC毎にデコード呼び出し
+
+
 
   // ボタンAが押された時の処理
   if (M5.BtnA.wasPressed()) {
-    // "Hello"をラズパイへ送信する
-    //Serial2.write("hello");
-    //Serial.println("hello");
+    setBrightness();
   }
 
   // ボタンBが押された時の処理：Clear
   if (M5.BtnB.wasPressed()) {
-    //grp.clear();
-    n_data.view();
+    long templ = random( 0 , 500 );
+    long humid = random( 0, 100 );
+    long press = random( 980, 1200 );
+    long avs   = random( 0, 10000 );
+    LCD.update_test( (float)templ / 10.0, humid, press, avs , rtc.getMinute() , SENS_t::TH1 );
+    LCD.draw();
   }
 
   // ボタンCが押された時の処理：Clear
   if (M5.BtnC.wasPressed()) {
     M5.Lcd.setTextSize( 2 );
     n_data.dump();
-    //grp.clear();
+    LCD.draw();
   }
-
-
-  //ステータスバー更新
-  //drawStatusBar();
 }
