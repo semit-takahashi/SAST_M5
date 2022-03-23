@@ -8,9 +8,16 @@
  * @copyright Copyright (c) 2022
  * 
  */
+#ifndef __SAST_SENSOR_H__
+#define __SAST_SENSOR_H__
+
 
 #include <M5Stack.h>
 #include "SAST_M5.h"
+#include "display.h"
+
+// Protype
+class M5_LCD;
 
 /**
  * @brief 閾値情報クラス
@@ -23,12 +30,12 @@ class SensThresh {
         float warn_humid;
         float caut_humid;
     public:
-        void copy( SensThresh *th );
-        void setTempl( float warn, float catuion);
-        void setHumid( float warn, float caution);
-        SSTAT_t getStatusTempl( float templ );
+        void copy( const SensThresh *th );
+        void setTempl( const float warn, const float catuion);
+        void setHumid( const float warn, const float caution);
+        SSTAT_t getStatusTempl( const float templ );
 
-        void dump();
+        static void dump( const SensThresh *s);
 };
 
 
@@ -48,9 +55,9 @@ class sData {
         time_t      date;
     
     public:
-        void clone( sData *src,  sData *dst);
+        void clone( const sData *src, sData *dst);
 
-        void dump();
+        static void dump( const sData *dt );
 
 };
 
@@ -66,7 +73,7 @@ class Sensor {
         String  Name;
         String  *ID;
 
-    //private::
+    //private:
         sData   Data;
         sData   prevData;
         bool    updated;
@@ -74,30 +81,38 @@ class Sensor {
         SSTAT_t status;
         SensThresh thr;
 
+        // Ambient通知番号設定
+        uint8_t amb_templ;
+        uint8_t amb_humid;
+        uint8_t amb_avs;
+
     public:
-        void init( SENS_t type, String name, String ID, SensThresh *th );
-        void update( sData *dt );
+        void init( const SENS_t type, const String name, const String ID, const SensThresh *th , const uint8_t a_templ, const uint8_t a_humid, const uint8_t a_avs );
+        void update( const sData *dt );
         sData *getData();
         sData *getPrevData();
         void done();
-        bool updateTimeSpan( uint32_t interval );
+        bool updateTimeSpan( const uint32_t interval );
         sData *getNewData();
-
 };
 
 
 class SensList {
     public:
-        Sensor  Sens[MAX_SENS] ;  // センサー情報配列
-        uint8_t Num = 0;        // 登録センサー数
+        Sensor  Sens[MAX_SENS] ;    // センサー情報配列
+        uint8_t Num = 0;            // 登録センサー数
+        M5_LCD  *LCD;               // LCD表示画面クラス
+      //Ambient *amb;               // グラフ化クラス
+      //Notify  *notify;            // 通知クラス 
     
     public:
         SensList();
-        bool add( SENS_t type,  String id, String name, SensThresh th ) ;
-        bool update( sData *dt );
-        Sensor *getSensor( String id, SENS_t type );
-
+        bool add( const SENS_t type,  const String id, const String name, const SensThresh th, const uint8_t a_templ, const uint8_t a_humid, const uint8_t a_avs );
+        bool update( const sData *dt );
+        Sensor *getSensor( const String id, const SENS_t type );
+        uint8_t getSensNum() { return Num; };
 
         void dump();
-
 };
+
+#endif __SAST_SENSOR_H__

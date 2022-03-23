@@ -48,7 +48,7 @@ class netRTC {
     uint16_t    getMinute();
     void        beep();
     time_t      getTimeRAW();
-
+    bool        isSet();
 };
 
 #endif //__NETRTC_H_

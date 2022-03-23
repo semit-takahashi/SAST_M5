@@ -59,6 +59,14 @@ enum class GRAPH_t {
   AVS,
 };
 
+/**
+ * @brief 座標構造体
+ */
+typedef struct {
+  uint8_t x;
+  uint8_t y;
+}st_POS;
+
 // 最大センサー数
 const uint8_t MAX_SENS = 6;
 
@@ -73,10 +81,5 @@ const uint16_t  BGC_PAN_LOW =  M5.Lcd.color565( 0x00, 0x14, 0x62 );
 const uint16_t  BGC_PAN_HIG = M5.Lcd.color565( 0xf2, 0x00, 0x51 );
 const uint16_t  BGC_GRAP    = M5.Lcd.color565( 0x00, 0x38, 0x65 );
 const uint16_t  BGC_STAT    = M5.Lcd.color565( 0x00, 0x00, 0x7b );
-
-// イメージデータ配列作成
-const uint16_t *PANEL_img[] = { bg_pan_nor, bg_pan_high, bg_pan_high, bg_pan_low, bg_pan_low };
-const uint16_t *ANT_img[] = {ANT_1, ANT_2, ANT_3, ANT_4};
-const uint16_t *BATT_img[] = {BATT_0, BATT_1, BATT_2, BATT_3};
 
 #endif __SAST_M5_H__

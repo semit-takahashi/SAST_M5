@@ -138,8 +138,12 @@ void netRTC::beep()
   M5.Speaker.begin();       // 呼ぶとノイズ(ポップ音)が出る 
   M5.Speaker.setVolume(1);  // 0は無音、1が最小、8が初期値(結構大きい)
   M5.Speaker.beep();        // ビープ開始
-  delay(100);               // 100ms鳴らす(beep()のデフォルト)
+  delay(80);               // 100ms鳴らす(beep()のデフォルト)
   M5.Speaker.mute();        //　ビープ停止
+}
+
+bool netRTC::isSet(){
+  return IsSet;
 }
 
 /*

@@ -18,7 +18,7 @@
  * 
  * @param th 元のデータ
  */
-void SensThresh::copy( SensThresh *th ) {
+void SensThresh::copy( const SensThresh *th ) {
     warn_templ = th->warn_templ;
     caut_templ = th->caut_templ;
     warn_humid = th->warn_humid;
@@ -31,7 +31,7 @@ void SensThresh::copy( SensThresh *th ) {
  * @param warn 
  * @param caution 
  */
-void SensThresh::setTempl( float warn, float caution) {
+void SensThresh::setTempl( const float warn, const float caution) {
     warn_templ = warn;
     caut_templ = caution;
 }
@@ -42,7 +42,7 @@ void SensThresh::setTempl( float warn, float caution) {
  * @param warn 
  * @param caution 
  */
-void SensThresh::setHumid( float warn, float caution) {
+void SensThresh::setHumid( const float warn, const float caution) {
     warn_humid = warn;
     caut_humid = caution;
 }
@@ -50,11 +50,11 @@ void SensThresh::setHumid( float warn, float caution) {
 /**
  * @brief DEBUG dump()
  */
-void SensThresh::dump() {
-    Serial.printf("SensThresh-> warn_templ : %8.2f\r\n",warn_templ );
-    Serial.printf("SensThresh-> caut_templ : %8.2f\r\n",caut_templ );
-    Serial.printf("SensThresh-> warn_humid : %8.2f\r\n",warn_humid );
-    Serial.printf("SensThresh-> caut_humid : %8.2f\r\n",caut_humid );
+void SensThresh::dump( const SensThresh *s ) {
+    Serial.printf("SensThresh-> warn_templ : %8.2f\r\n",s->warn_templ );
+    Serial.printf("SensThresh-> caut_templ : %8.2f\r\n",s->caut_templ );
+    Serial.printf("SensThresh-> warn_humid : %8.2f\r\n",s->warn_humid );
+    Serial.printf("SensThresh-> caut_humid : %8.2f\r\n",s->caut_humid );
 }
 
 /**
@@ -63,7 +63,7 @@ void SensThresh::dump() {
  * @param templ  確認対象の温度
  * @return SSTAT_t 温度のステータス
  */
-SSTAT_t SensThresh::getStatusTempl( float templ ) {
+SSTAT_t SensThresh::getStatusTempl( const float templ ) {
     if( templ > caut_templ ) {
         return SSTAT_t::caution;
     }
@@ -81,7 +81,7 @@ SSTAT_t SensThresh::getStatusTempl( float templ ) {
  * @param src コピー元（アドレス渡し）
  * @param dst コピー先（アドレス渡し）
  */
-void sData::clone( sData *src, sData *dst ) {
+void sData::clone( const sData *src, sData *dst ) {
     dst->Type    = src->Type;
     dst->ID      = src->ID;
     dst->Templ   = src->Templ;
@@ -93,16 +93,16 @@ void sData::clone( sData *src, sData *dst ) {
     dst->date    = src->date;
 }
 
-void sData::dump(){
-    Serial.printf("Data-> Type  : %d\r\n",Type);
-    Serial.printf("Data-> ID    : %s\r\n",ID.c_str());
-    Serial.printf("Data-> Templ : %8.2f\r\n",Templ);
-    Serial.printf("Data-> Humid : %8.2f\r\n",Humid);
-    Serial.printf("Data-> Press : %d\r\n",Press);
-    Serial.printf("Data-> RSSI  : %d\r\n",RSSI);
-    Serial.printf("Data-> AVS   : %d\r\n",AVS);
-    Serial.printf("Data-> BATT  : %8.2f\r\n",batt);
-    Serial.printf("Data-> date  : %d\r\n",date);
+void sData::dump( const sData *s ){
+    Serial.printf("Data-> Type  : %d\r\n",s->Type);
+    Serial.printf("Data-> ID    : %s\r\n",s->ID.c_str());
+    Serial.printf("Data-> Templ : %8.2f\r\n",s->Templ);
+    Serial.printf("Data-> Humid : %8.2f\r\n",s->Humid);
+    Serial.printf("Data-> Press : %d\r\n",s->Press);
+    Serial.printf("Data-> RSSI  : %d\r\n",s->RSSI);
+    Serial.printf("Data-> AVS   : %d\r\n",s->AVS);
+    Serial.printf("Data-> BATT  : %8.2f\r\n",s->batt);
+    Serial.printf("Data-> date  : %d\r\n",s->date);
 }
 
 /** ======================================================== Sensor */
@@ -114,7 +114,8 @@ void sData::dump(){
  * @param name センサーの名称（LINE表示用）
  * @param ID センサーのID（MACアドレス）
  */
-void Sensor::init( SENS_t type, String name, String id, SensThresh *th  ) {
+void Sensor::init( const SENS_t type, const String name, const String id, const SensThresh *th,
+                    const uint8_t a_templ, const uint8_t a_humid, const uint8_t a_avs ) {
     Data.Type = type;
     Type = &Data.Type;
     Name = name;
@@ -123,6 +124,10 @@ void Sensor::init( SENS_t type, String name, String id, SensThresh *th  ) {
     updated = false;
     thr.copy( th );
     use = true;
+
+    amb_templ = a_templ;
+    amb_humid = a_humid;
+    amb_avs   = a_avs;    
 }
 
 
@@ -131,7 +136,7 @@ void Sensor::init( SENS_t type, String name, String id, SensThresh *th  ) {
  * 
  * @param dt コピー元センサーデータ
  */
-void Sensor::update( sData *dt) {
+void Sensor::update( const sData *dt) {
     // 一つ前のデータにコピー
     prevData.ID      = Data.ID;
     prevData.Templ   = Data.Templ;
@@ -157,6 +162,7 @@ void Sensor::update( sData *dt) {
 
     // センターデータの状態検知
     status = thr.getStatusTempl( dt->Templ );
+
 }
 
 /**
@@ -184,8 +190,8 @@ sData* Sensor::getPrevData(){
  * @return true  指定時間内
  * @return false 更新間隔を過ぎている
  */
-bool Sensor::updateTimeSpan( uint32_t interval ){
-    // 現在のdataimeからDate.dateにintervalを足した値を引く
+bool Sensor::updateTimeSpan( const  uint32_t interval ){
+    // TODO 現在のdataimeからDate.dateにintervalを足した値を引く
     // true  時間内
     // false 時間経過済
     return true;
@@ -221,12 +227,18 @@ SensList::SensList(){
  * @param ID     センサーID（MACアドレス
  * @param Name   センサー名  
  * @param th     センサー閾値description
+ * @param a_templ Ambient通知ID 温度
+ * @param a_humid Ambient通知ID 湿度
+ * @param a_avs   Ambient通知ID 光量
+ * 
  * @return true  追加成功
  * @return false 最大数のため追加不可能
  */
-bool SensList::add( SENS_t type, String name, String id , SensThresh th ){
+bool SensList::add( const  SENS_t type, const  String name, const  String id , SensThresh th,
+                    const uint8_t a_templ, const uint8_t a_humid, const uint8_t a_avs ){
+    if( type == SENS_t::None ) return false;
     if( Num < MAX_SENS ) {
-        Sens[Num].init( type, name, id, &th);
+        Sens[Num].init( type, name, id, &th, a_templ, a_humid, a_avs );
         Num++;
         return true;
     }
@@ -240,15 +252,24 @@ bool SensList::add( SENS_t type, String name, String id , SensThresh th ){
  * @return true 更新成功
  * @return false センサーが無い
  */
-bool SensList::update( sData *dt ) {
-    Sensor *sen = getSensor( dt->ID, dt->Type );
-    if( sen != NULL ) {
-        sen->update( dt );
-        return true;
+bool SensList::update( const  sData *dt ) {
+    for( uint8_t i; i < Num; i++  ) {
+        if( Sens[i].Data.Type == dt->Type ) {    // 高速化のためTypeで一次判定
+            if( Sens[i].Data.ID == dt->ID ) {    // 次に文字列比較(ID)
+                Sens[i].update( dt );
+                LCD->update( i, Sens[i].status, &Sens[i].Data );
+                // TODO Ambientに通知
+                // ex: amb->update( amb_num, data, keta );
+                if( Sens[i].status != SSTAT_t::normal ) {
+                    // TODO Notifyに通知
+                    // ex: notify->set( sen->Data, sen->status )
+                }
+                return true;
+            }
+        }
     }
     return false;
 }
-
 
 /**
  * @brief 指定されたIDのセンサーを返す
@@ -257,7 +278,7 @@ bool SensList::update( sData *dt ) {
  * @param type センサーのタイプ
  * @return Sensor* 
  */
-Sensor * SensList::getSensor( String id, SENS_t type ) {
+Sensor * SensList::getSensor( const String id, const SENS_t type ) {
     for( uint8_t i; i < Num; i++  ) {
         if( *Sens[i].Type == type ) {    // 高速化のためTypeで一次判定
             if( *Sens[i].ID == id ) {    // 次に文字列比較(ID)
@@ -277,11 +298,11 @@ void SensList::dump() {
     Serial.print("Type          :"); Serial.printf("%d\r\n",*Sens[i].Type);
     Serial.print("ID            :"); Serial.printf("%s\r\n",*Sens[i].ID);
     Serial.print("Name          :"); Serial.println(Sens[i].Name);
-    Serial.println("Data.duump()"); Sens[i].Data.dump();
-    Serial.print("prevData.dump()"); Sens[i].prevData.dump();
+    Serial.println("Data.duump()");  sData::dump( &Sens[i].Data );
+    Serial.print("prevData.dump()"); sData::dump( &Sens[i].prevData );
     Serial.print("updated       :"); Serial.println(Sens[i].updated);
     Serial.print("use           :"); Serial.println(Sens[i].use);
     Serial.print("status        :"); Serial.printf("%d\r\n",Sens[i].status);
-    Serial.print("SensThresh.dump()"); Sens[i].thr.dump();
+    Serial.print("SensThresh.dump()"); SensThresh::dump( &Sens[i].thr );
     }
 }

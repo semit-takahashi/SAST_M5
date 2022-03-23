@@ -17,38 +17,47 @@ bool INF::load(){
     char          buff[buff_len];
     String        sect;
 
+    if( slist == NULL ) return false;
+
     Serial.println("Load INI file.");
     if (!SD.begin()) {
-      Serial.println(" Please Insert SD-CARD and RESET! ");
-      M5.Lcd.println(" Please Insert SD-CARD and RESET! ");
-      while (1) ;
+        Serial.println(" Please Insert SD-CARD and RESET! ");
+        M5.Lcd.println(" Please Insert SD-CARD and RESET! ");
+        while (1) ;
     }
     IniFile in(iniFile);
 
     // File Open
     if (!in.open()) {
-      Serial.printf("ERROR Ini file [%s] does not exist. \r\n STOP!", iniFile);
-      M5.Lcd.printf("ERROR Ini file [%s] does not exist. \r\n STOP!", iniFile);
-      while (1);
+        Serial.printf("ERROR Ini file [%s] does not exist. \r\n STOP!", iniFile);
+        M5.Lcd.printf("ERROR Ini file [%s] does not exist. \r\n STOP!", iniFile);
+        while (1);
     }
     Serial.printf("INI file [ %s ] exists\r\n", iniFile);
 
     // Check File is Valid.
     if (!in.validate(buff, buff_len)) {
-      Serial.printf("ini file %s not valid\r\n", in.getFilename());
-      M5.Lcd.printf("ini file %s not valid\r\n", in.getFilename());
-      printErrorMessage(in.getError());
-      // Cannot do anything else
-      while (1);
+        Serial.printf("ini file %s not valid\r\n", in.getFilename());
+        M5.Lcd.printf("ini file %s not valid\r\n", in.getFilename());
+        printErrorMessage(in.getError());
+        // Cannot do anything else
+        while (1);
     }
 
     // ======== Wi-Fi
-    wifi[0].ssid = getValueSTR( in, "Wi-Fi", "SSID1", buff, buff_len );
-    wifi[0].key  = getValueSTR( in, "Wi-Fi", "KEY1", buff, buff_len );
-    wifi[1].ssid = getValueSTR( in, "Wi-Fi", "SSID2", buff, buff_len );
-    wifi[1].key  = getValueSTR( in, "Wi-Fi", "KEY2", buff, buff_len );
-    wifi[2].ssid = getValueSTR( in, "Wi-Fi", "SSID3", buff, buff_len );
-    wifi[2].key  = getValueSTR( in, "Wi-Fi", "KEY3", buff, buff_len );
+    sect="WiFi";
+    wifi[0].ssid = getValueSTR( in, sect.c_str(), "SSID1", buff, buff_len );
+    wifi[0].key  = getValueSTR( in, sect.c_str(), "KEY1", buff, buff_len );
+    wifi[1].ssid = getValueSTR( in, sect.c_str(), "SSID2", buff, buff_len );
+    wifi[1].key  = getValueSTR( in, sect.c_str(), "KEY2", buff, buff_len );
+    wifi[2].ssid = getValueSTR( in, sect.c_str(), "SSID3", buff, buff_len );
+    wifi[2].key  = getValueSTR( in, sect.c_str(), "KEY3", buff, buff_len );
+
+    // ======== Ambient
+    sect = "Ambient";
+    amb_chID = getValueSTR( in, sect.c_str(), "channel", buff, buff_len );
+    amb_wKey = getValueSTR( in, sect.c_str(), "read", buff, buff_len );
+    amb_rKey = getValueSTR( in, sect.c_str(), "write", buff, buff_len );
 
     // ======== LINE
     sect = "LINE";
@@ -64,32 +73,35 @@ bool INF::load(){
     QRCode = getValueSTR( in, sect.c_str(), "URL", buff, buff_len );
 
     // ======== Threshold temp
-    sect = "THRESH_TEMP";
+    sect = "THRESH_TEMPL";
     temp_warn = getValueFLOAT( in, sect.c_str(), "WARN", buff, buff_len );
     temp_caut = getValueFLOAT( in, sect.c_str(), "CAUTION", buff, buff_len );
+    thresh.setTempl( temp_warn, temp_caut );       // 閾値クラスに設定
 
-    // ======== Sensors 
+    // ======== Sensors
+    st_SensINF    s;
     uint8_t max_sens = 6;
     const char* sens_name[] = {"SENSORS_1","SENSORS_2","SENSORS_3","SENSORS_4","SENSORS_5","SENSORS_6"};
+
     for( int i=0; i < max_sens; i++ ) {
         String type =  getValueSTR( in, sens_name[i], "MAC", buff, buff_len );
         if( type == "LAZURITE" ) {
-          sens[i].stype = SENS_t::Lazurite;
+            s.stype = SENS_t::Lazurite;
         }else if( type == "TH1" ) {
-          sens[i].stype = SENS_t::TH1;
+            s.stype = SENS_t::TH1;
         }else {
-          // それ以外の場合はセンサーが無いとする
-          sens[i].stype = SENS_t::None;
-          continue;
-
+            // それ以外の場合はセンサーが無いとする
+            s.stype = SENS_t::None;
         }
-        sens[i].id = getValueSTR( in, sens_name[i], "ADDR", buff, buff_len );
-        sens[i].name = getValueSTR( in, sens_name[i], "name", buff, buff_len );
-        sens[i].amb_templ = getValueSTR( in, sens_name[i], "templ", buff, buff_len );
-        sens[i].amb_humid = getValueSTR( in, sens_name[i], "humid", buff, buff_len );
-        sens[i].amb_avs = getValueSTR( in, sens_name[i], "als", buff, buff_len );
-    }
+        s.id = getValueSTR( in, sens_name[i], "ADDR", buff, buff_len );
+        s.name = getValueSTR( in, sens_name[i], "name", buff, buff_len );
+        s.amb_templ = getValueINT( in, sens_name[i], "templ", buff, buff_len );
+        s.amb_humid = getValueINT( in, sens_name[i], "humid", buff, buff_len );
+        s.amb_avs = getValueINT( in, sens_name[i], "als", buff, buff_len );
 
+        slist->add( s.stype, s.id, s.name, thresh , s.amb_templ, s.amb_humid, s.amb_avs );
+    }
+    
 }
 
 /**
@@ -97,11 +109,17 @@ bool INF::load(){
  * @param num 0〜3（設定情報）
  * @return st_wifi 
  */
-st_wifi INF::getWiFi( uint8_t num ) 
-{
+st_wifi INF::getWiFi( uint8_t num ) {
     return wifi[num];
 }
 
+/**
+ * @brief センサーリストインスタンスを設定
+ * @param list 
+ */
+void INF::setSensorList( SensList *list ) {
+    slist = list;
+}
 
 // INI Value String 取得
 const char *INF::getValueSTR( IniFile in, const char *sect, const char *name, char *buff, size_t buff_len ) {
