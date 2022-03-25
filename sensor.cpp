@@ -170,7 +170,7 @@ void Sensor::update( const sData *dt) {
     Data.date    = dt->date;
 
     // 利用状況確認
-    if( use )  {
+    if( !use )  {
         status = SSTAT_t::disable;
         updated = false;
         return;
