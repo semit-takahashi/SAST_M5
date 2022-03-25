@@ -84,7 +84,7 @@ bool INF::load(){
     const char* sens_name[] = {"SENSORS_1","SENSORS_2","SENSORS_3","SENSORS_4","SENSORS_5","SENSORS_6"};
 
     for( int i=0; i < max_sens; i++ ) {
-        String type =  getValueSTR( in, sens_name[i], "MAC", buff, buff_len );
+        String type =  getValueSTR( in, sens_name[i], "TYPE", buff, buff_len );
         if( type == "LAZURITE" ) {
             s.stype = SENS_t::Lazurite;
         }else if( type == "TH1" ) {
@@ -101,6 +101,7 @@ bool INF::load(){
 
         slist->add( s.stype, s.id, s.name, thresh , s.amb_templ, s.amb_humid, s.amb_avs );
     }
+    Serial.printf("Num of Sensor is  %d\n", slist->Num);
     
 }
 
@@ -124,7 +125,7 @@ void INF::setSensorList( SensList *list ) {
 // INI Value String 取得
 const char *INF::getValueSTR( IniFile in, const char *sect, const char *name, char *buff, size_t buff_len ) {
     if ( in.getValue( sect, name, buff, buff_len ) ) {
-      DMSGf("[%s] %s: %s\r\n", sect, name, buff);
+      DMSGf("[%s] [%s]: %s\r\n", sect, name, buff);
       return buff;
     } else {
       DMSGf("Not found [%s] [%s] : ", sect, name );

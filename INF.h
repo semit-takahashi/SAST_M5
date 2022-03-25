@@ -7,7 +7,7 @@
 #include "sensor.h"
 #include "display.h"
 
-#define __DEBUG
+//#define __DEBUG
 #ifdef __DEBUG
 #define DMSGf(...) Serial.printf(__VA_ARGS__)
 #define DMSG(X) Serial.print(X)

@@ -55,7 +55,7 @@ class sData {
         time_t      date;
     
     public:
-        void clone( const sData *src, sData *dst);
+        void clone( const sData *src);
 
         static void dump( const sData *dt );
 
@@ -69,9 +69,9 @@ class sData {
  */
 class Sensor {
     public:
-        SENS_t  *Type;
+        SENS_t  Type;
         String  Name;
-        String  *ID;
+        String  ID;
 
     //private:
         sData   Data;
@@ -80,6 +80,7 @@ class Sensor {
         bool    use = false;
         SSTAT_t status;
         SensThresh thr;
+        double  diffSec;
 
         // Ambient通知番号設定
         uint8_t amb_templ;
@@ -94,12 +95,15 @@ class Sensor {
         void done();
         bool updateTimeSpan( const uint32_t interval );
         sData *getNewData();
+
+        static void dump( Sensor *s );
 };
 
 
 class SensList {
     public:
         Sensor  Sens[MAX_SENS] ;    // センサー情報配列
+        Sensor  EnvS;               // 本体センサー
         uint8_t Num = 0;            // 登録センサー数
         M5_LCD  *LCD;               // LCD表示画面クラス
       //Ambient *amb;               // グラフ化クラス
@@ -109,8 +113,9 @@ class SensList {
         SensList();
         bool add( const SENS_t type,  const String id, const String name, const SensThresh th, const uint8_t a_templ, const uint8_t a_humid, const uint8_t a_avs );
         bool update( const sData *dt );
+        void updateEnv( const sData *dt );
         Sensor *getSensor( const String id, const SENS_t type );
-        uint8_t getSensNum() { return Num; };
+        void getAmbientData( st_AMB *dt[] );
 
         void dump();
 };

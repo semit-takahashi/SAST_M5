@@ -20,8 +20,7 @@ void netRTC::setAP( const char *wifi_ssid, const char *wifi_key )
   ssid = wifi_ssid;
   key = wifi_key;
   IsSet = true;
-  Serial.println( ssid );
-  Serial.println( key );
+  Serial.printf(" %s / %s\n",ssid, key );
 }
 
 /**
@@ -54,16 +53,15 @@ bool netRTC::setNTP()
     Serial.print(".");
   }
   ip = WiFi.localIP();
-  M5.Lcd.print(" CONNECTED\r\n -> "); M5.Lcd.println(ip);
-  Serial.print(" CONNECTED\r\n -> "); Serial.println(ip);
+  M5.Lcd.print(" CONNECTED\n\n ["); M5.Lcd.print(ip);M5.Lcd.println("]\n");
+  Serial.print(" CONNECTED\n\n ["); Serial.print(ip);Serial.println("]\n");
   
   // Set netRTC time to local
   IsSet = true;
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   calc();
   M5.Lcd.println( str_stime );
-  Serial.println( str_stime );
-  //delay(1000);
+  Serial.printf("%s ( %d ) \n",str_stime, tm );
 
   //disconnect WiFi
   WiFi.disconnect(true);
@@ -83,27 +81,32 @@ void netRTC::calc() {
   sprintf(str_stime, "%2d/%2d %2d:%02d", tf.tm_mon+1, tf.tm_mday, tf.tm_hour, tf.tm_min );
   sprintf(str_ltime, "%04d-%02d-%02d %02d:%02d:%02d.000", 1900 + tf.tm_year, tf.tm_mon+1, tf.tm_mday, tf.tm_hour, tf.tm_min, tf.tm_sec );
   minute = tf.tm_hour * 60 + tf.tm_min;
+  tm = mktime(&tf);
 }
 
+/**
+ * @brief calc()時点ののショート時間（M/D HH:MM)文字列を返す
+ * @return const char* 
+ */
 const char* netRTC::getTimeSTR(){
   return str_stime;
 }
 
+/**
+ * @brief calc()時点の分を返す
+ * @return uint16_t 
+ */
 uint16_t netRTC::getMinute() {
   return minute;
 }
 
 
 /**
- * @brief UNIX Timeを取得 LONG型 
+ * @brief calc()時点のUNIX Timeを取得 LONG型 
  * @return time_t 
  */
-time_t netRTC::getTimeRAW()
-{
-  //setTime();
-  time_t t;
-  time(&t);
-  return t;
+time_t netRTC::getTimeRAW() {
+  return tm;
 }
 
 // netRTC時間の再設定を実施
@@ -133,8 +136,11 @@ void netRTC::reflesh() {
   }
 }
 
-void netRTC::beep()
-{
+
+/**
+ * @brief エラーBEEPを発生
+ */
+void netRTC::beep(){
   M5.Speaker.begin();       // 呼ぶとノイズ(ポップ音)が出る 
   M5.Speaker.setVolume(1);  // 0は無音、1が最小、8が初期値(結構大きい)
   M5.Speaker.beep();        // ビープ開始
@@ -142,8 +148,25 @@ void netRTC::beep()
   M5.Speaker.mute();        //　ビープ停止
 }
 
+/**
+ * @brief NTPが設定済み換えを返す
+ * @return true 
+ * @return false 
+ */
 bool netRTC::isSet(){
   return IsSet;
+}
+
+/**
+ * @brief 指定時刻と現在時刻の経過秒数を返す
+ * @param srcTime  time_t型の指定時刻
+ * @return double 経過秒数
+ */
+double netRTC::getTimeDiffer( const time_t srcTime ) {
+    struct tm lTime;
+    getLocalTime(&lTime);
+    time_t lt = mktime(&lTime);
+    return difftime( srcTime, lt );
 }
 
 /*

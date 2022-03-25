@@ -12,88 +12,24 @@
 #include "display.h"
 
 // イメージデータ配列作成
-const uint16_t *PANEL_img[] = { bg_pan_nor, bg_pan_warn, bg_pan_caut};
+//const uint16_t *PANEL_img[] = { bg_pan_nor, bg_pan_warn, bg_pan_caut};
 const uint16_t *ANT_img[] = {ANT_1, ANT_2, ANT_3, ANT_4};
 const uint16_t *BATT_img[] = {BATT_0, BATT_1, BATT_2, BATT_3};
-
-/**
- * @brief Construct a new M5_LCD::display object
- * @note スプライト情報の初期化
- */
-M5_LCD::M5_LCD(){
-    // パネルスプライト
-    panel1.setColorDepth(8);
-    panel1.createSprite( PAN_WIDTH, PAN_HEIGHT );
-    panel1.pushImage( 0, 0, PAN_WIDTH, PAN_HEIGHT, bg_pan_nor );
-    panel1.setTextColor( TFT_WHITE );
-    panel2.setColorDepth(8);
-    panel2.createSprite( PAN_WIDTH, PAN_HEIGHT );
-    panel2.pushImage( 0, 0, PAN_WIDTH, PAN_HEIGHT, bg_pan_nor );
-    panel2.setTextColor( TFT_WHITE );
-    panel3.setColorDepth(8);
-    panel3.createSprite( PAN_WIDTH, PAN_HEIGHT );
-    panel3.pushImage( 0, 0, PAN_WIDTH, PAN_HEIGHT, bg_pan_nor );
-    panel3.setTextColor( TFT_WHITE );
-    panel4.setColorDepth(8);
-    panel4.createSprite( PAN_WIDTH, PAN_HEIGHT );
-    panel4.pushImage( 0, 0, PAN_WIDTH, PAN_HEIGHT, bg_pan_nor );
-    panel4.setTextColor( TFT_WHITE );
-    panel5.setColorDepth(8);
-    panel5.createSprite( PAN_WIDTH, PAN_HEIGHT );
-    panel5.pushImage( 0, 0, PAN_WIDTH, PAN_HEIGHT, bg_pan_nor );
-    panel5.setTextColor( TFT_WHITE );
-    panel6.setColorDepth(8);
-    panel6.createSprite( PAN_WIDTH, PAN_HEIGHT );
-    panel6.pushImage( 0, 0, PAN_WIDTH, PAN_HEIGHT, bg_pan_nor );
-    panel6.setTextColor( TFT_WHITE );
-
-    // ステータスバースプライト
-    status.setColorDepth(8);
-    status.createSprite( STT_WIDTH, STT_HEIGHT );
-    status.pushImage( 0, 0, STT_WIDTH, STT_HEIGHT, bg_stt );
-    status.setTextColor( TFT_WHITE );
-
-    // 更新フラグ
-    for( int i = 0; i < MAX_SENS; i++ ) {
-        bUpdated[i] = false;
-    }
-
-    // 時刻情報
-    RTC = NULL;
-
-    // 輝度
-    light = 4;
-}
 
 
 /**
  * @brief LCD初期化
- * 
  */
-void M5_LCD::init(){
+void M5_LCD::init( netRTC* rtc, SensList *sns ){
     // LCD初期化
-    setBrightness( 2 );
     M5.Lcd.setTextFont(2);
     M5.Lcd.setTextSize(1);
     M5.Lcd.fillScreen(TFT_NAVY);
     M5.Lcd.setTextColor(TFT_WHITE, TFT_NAVY );
     M5.Lcd.setCursor(2, 2);
-
-    // 画面情報表示
-    draw( true );
-
-    //輝度初期設定
-    setBrightness( 3 );
-
-}
-
-/**
- * @brief netRTC設定（時刻取得用）
- * 
- * @param rtc 
- */
-void M5_LCD::setRTC( netRTC *rtc ) {
+    setBrightness( 3 );         // 画面輝度初期
     RTC = rtc;
+    SENS = sns;
 }
 
 /**
@@ -102,33 +38,40 @@ void M5_LCD::setRTC( netRTC *rtc ) {
  * @param stat センサーステータス(NORMALWARN,CAUTION) 
  * @param dt センサデータ
  */
-bool M5_LCD::update( uint8_t n, SSTAT_t stat, sData *dt ){
-    Serial.println("updte()");
-    sData::dump( dt );
+bool M5_LCD::update( uint16_t n, SSTAT_t stat, sData *dt ){
+    Serial.printf("M5_LCD::update() %d %d \n",n, (int)stat );
+    
+    // 温度パネル スプライトム準備
+    TFT_eSprite PN = TFT_eSprite(&M5.Lcd);
+    PN.setColorDepth(8);
+    PN.createSprite( PAN_WIDTH, PAN_HEIGHT );
+    makePanelBG( &PN, SSTAT_t::normal );
+    PN.setTextColor( TFT_WHITE );
+    PN.setTextFont( 1 );
+
+    // フォントカラー設定
+    //Serial.println("Select Font Color");
+    //Serial.printf("PANEL_bgc %x\n",&PANEL_bgc);
     uint16_t fC = TFT_WHITE;
-    uint16_t bC = BGC_PAN_NOR;
+    uint16_t bC = PANEL_bgc[(int)stat];
 
     // 文字列変換
+    //Serial.println("Data Traslation");
     char    str_templ[5];
     char    str_humid[5];
     char    str_templ_l[2];
     char    str_humid_l[2];
     char    str_press[5];
     char    str_als[5];
-    sprintf( str_templ,   "%3d", (int)dt->Templ );
-    sprintf( str_humid,   "%3d", (int)dt->Humid );
+    sprintf( str_templ,   "%3d", (int)(dt->Templ) );
+    sprintf( str_humid,   "%3d", (int)(dt->Humid) );
     sprintf( str_templ_l, "%1d", ftoa1(dt->Templ) );
     sprintf( str_humid_l, "%1d", ftoa1(dt->Humid) );
-    sprintf( str_press,   "%4d", (int)dt->Press );
-    sprintf( str_als,     "%4d", (int)dt->AVS );
+    sprintf( str_press,   "%4d", (int)(dt->Press) );
+    sprintf( str_als,     "%4d", (int)(dt->AVS)   );
 
-    // パネル選択
-    TFT_eSprite *pan = PN[n];
 
-    // BGのコピー
-    pan->pushImage( 0, 0, PAN_WIDTH, PAN_HEIGHT, PANEL_img[(int)stat] );
-
-#ifdef DEBUG
+#ifdef SAST_DEBUG
     Serial.printf("templ : %s\r\n", str_templ );
     Serial.printf("templL: %s\r\n", str_templ_l );
     Serial.printf("humid : %s\r\n", str_humid );
@@ -138,69 +81,66 @@ bool M5_LCD::update( uint8_t n, SSTAT_t stat, sData *dt ){
 #endif
 
     // draw TEMPLATURE
-    pan->drawChar(  2, 24 , str_templ[0], fC, bC, 3 );
-    pan->drawChar( 17, 24 , str_templ[1], fC, bC, 4 );
-    pan->drawChar( 43, 23 , str_templ[2], fC, bC, 4 );
-    pan->drawChar( 62, 40 , '.',          fC, bC, 2 );
-    pan->drawChar( 74, 40 , str_templ_l[0], fC, bC, 2 );
-    pan->drawChar( 93, 40 , 'C',          fC, bC, 2 );
-    pan->drawChar( 84, 25 , '.',          fC, bC, 2 );
+    //Serial.println("Draw Templature");
+    PN.drawChar(  2, 24 , str_templ[0], fC, bC, 3 );
+    PN.drawChar( 17, 24 , str_templ[1], fC, bC, 4 );
+    PN.drawChar( 43, 23 , str_templ[2], fC, bC, 4 );
+    PN.drawChar( 62, 40 , '.',          fC, bC, 2 );
+    PN.drawChar( 74, 40 , str_templ_l[0], fC, bC, 2 );
+    PN.drawChar( 93, 40 , 'C',          fC, bC, 2 );
+    PN.drawChar( 84, 25 , '.',          fC, bC, 2 );
 
     // draw HUMIDITY
-    pan->drawChar( 33, 65 , str_humid[0], fC, bC, 3 );
-    pan->drawChar( 51, 65 , str_humid[1], fC, bC, 3 );
-    pan->drawChar( 71, 65 , str_humid[2], fC, bC, 3 );
-    pan->drawChar( 93, 70 , '%', fC, bC, 2 );
+    //Serial.println("Draw HUMIDITY");
+    PN.drawChar( 33, 65 , str_humid[0], fC, bC, 3 );
+    PN.drawChar( 51, 65 , str_humid[1], fC, bC, 3 );
+    PN.drawChar( 71, 65 , str_humid[2], fC, bC, 3 );
+    PN.drawChar( 93, 70 , '%', fC, bC, 2 );
 
     if ( dt->Type == SENS_t::TH1 ) {
         // draw Pressure
-        pan->drawChar( 40, 96 , str_press[0], fC, bC, 2 );
-        pan->drawChar( 52, 96 , str_press[1], fC, bC, 2 );
-        pan->drawChar( 64, 96 , str_press[2], fC, bC, 2 );
-        pan->drawChar( 76, 96 , str_press[3], fC, bC, 2 );
-        pan->drawChar( 87, 101 , 'h', fC, bC, 1 );
-        pan->drawChar( 94, 101 , 'P', fC, bC, 1 );
-        pan->drawChar(100, 101 , 'a', fC, bC, 1 );
+        //Serial.println("Draw Pressure");
+        PN.drawChar( 40, 96 , str_press[0], fC, bC, 2 );
+        PN.drawChar( 52, 96 , str_press[1], fC, bC, 2 );
+        PN.drawChar( 64, 96 , str_press[2], fC, bC, 2 );
+        PN.drawChar( 76, 96 , str_press[3], fC, bC, 2 );
+        PN.drawChar( 87, 101 , 'h', fC, bC, 1 );
+        PN.drawChar( 94, 101 , 'P', fC, bC, 1 );
+        PN.drawChar(100, 101 , 'a', fC, bC, 1 );
     } else {
         // draw AVS
-        pan->drawChar( 40, 96 , str_als[0], fC, bC, 2 );
-        pan->drawChar( 52, 96 , str_als[1], fC, bC, 2 );
-        pan->drawChar( 64, 96 , str_als[2], fC, bC, 2 );
-        pan->drawChar( 76, 96 , str_als[3], fC, bC, 2 );
-        pan->drawChar( 94, 101 , 'L', fC, bC, 1 );
-        pan->drawChar(100, 101 , 'X', fC, bC, 1 );
+        //Serial.println("Draw AVS");
+        PN.drawChar( 40, 96 , str_als[0], fC, bC, 2 );
+        PN.drawChar( 52, 96 , str_als[1], fC, bC, 2 );
+        PN.drawChar( 64, 96 , str_als[2], fC, bC, 2 );
+        PN.drawChar( 76, 96 , str_als[3], fC, bC, 2 );
+        PN.drawChar( 94, 101 , 'L', fC, bC, 1 );
+        PN.drawChar(100, 101 , 'X', fC, bC, 1 );
     }
 
-    //BATT TODO
-    pan->pushImage( 86, 3, BATT_Width, BATT_Height, BATT_img[0] );
+    // BATT TODO
+    TFT_eSprite BATT = TFT_eSprite(&M5.Lcd);
+    BATT.setColorDepth(8);
+    BATT.createSprite( BATT_Width, BATT_Height );
+    BATT.pushImage( 0, 0, BATT_Width, BATT_Height, BATT_img[n%4]);
 
     //ANT TODO
-    pan->pushImage( 64, 3, ANT_Width, ANT_Height, ANT_img[0] );
+    TFT_eSprite ANTN = TFT_eSprite(&M5.Lcd);
+    ANTN.setColorDepth(8);
+    ANTN.createSprite( ANT_Width, ANT_Height );
+    ANTN.pushImage( 0, 0, ANT_Width, ANT_Height, ANT_img[n%4]);
 
-}
+    //LCDに転送
+    Serial.println("draw LCD");
+    PN.pushSprite( PN_pos[n].x, PN_pos[n].y );
+    BATT.pushSprite( PN_pos[n].x+86, PN_pos[n].y+3, BGC_TRANSP );
+    ANTN.pushSprite( PN_pos[n].x+64, PN_pos[n].y+3, BGC_TRANSP );
 
-/**
- * @brief M5本体の温度情報更新してステータスバー情報の作成
- * @param dt センサーデータ
- */
-void M5_LCD::updateMyself( sData *dt ) {
-    //Serial.println("updateMyself()");
-    //sData::dump( dt );
-    // 背景ロード
-    status.pushImage( 0, 0, STT_WIDTH, STT_HEIGHT, bg_stt );
+    // メモリ解放
+    PN.deleteSprite();
+    BATT.deleteSprite();
+    ANTN.deleteSprite();
 
-    // 温度データ文字列
-    char   buff[64];
-    sprintf( buff, "%3.0fC %3.0f%% %4dhPa", dt->Templ, dt->Humid, dt->Press);    
-    String envStr = buff;
-    //Serial.println(envStr);
-
-    // 温度文字列描画
-    status.setTextColor( TFT_DARKGREY, BGC_STAT );
-    status.setTextFont( 1 );
-    status.setTextSize( LCD_TXT_SIZE_ST );
-    status.setPivot( 0, 0 );
-    status.printToSprite( envStr );
 }
 
 /**
@@ -214,7 +154,6 @@ void M5_LCD::draw( bool all ) {
 
 /**
  * @brief 画面全部の再描画
- * 
  */
 void M5_LCD::reDraw() {
     clear();
@@ -222,11 +161,28 @@ void M5_LCD::reDraw() {
 }
 
 /**
- * @brief 画面のクリア（消去）
+ * @brief 画面のクリア（初期画面）
  */
 void M5_LCD::clear() {
-    M5.Lcd.clear();
-    M5.Lcd.fillScreen(BGC_STAT);
+
+    TFT_eSprite PN = TFT_eSprite(&M5.Lcd);
+    PN.setColorDepth(8);
+    PN.createSprite( PAN_WIDTH, PAN_HEIGHT );
+    makePanelBG( &PN, SSTAT_t::normal );
+
+    TFT_eSprite STT = TFT_eSprite(&M5.Lcd);
+    STT.setColorDepth(8);
+    STT.createSprite( STT_WIDTH, STT_HEIGHT );
+    STT.fillSprite(BGC_STT);
+    STT.pushSprite( ST_pos.x, ST_pos.y );
+
+    for( uint16_t i=0; i < MAX_SENS; i++ ) {
+        PN.pushSprite( PN_pos[i].x, PN_pos[i].y );
+    }
+
+    PN.deleteSprite();
+    STT.deleteSprite();
+
 }
 
 /**
@@ -234,24 +190,18 @@ void M5_LCD::clear() {
  * @param all TRUE 全パネルの描画
  */
 void M5_LCD::drawPanel( bool all ) {
-    Serial.printf("LCD::drawPanel(%d)", all);
     if( !all ) {
     // === 更新のみ描画
         for( int i=0; i < MAX_SENS; i++ ) {
-            if( bUpdated[i] ) {
-                // TODO mutex START
-                // 指定したNOのパネル情報を転送
-                PN[i]->pushSprite( PN_pos[i].x, PN_pos[i].y );
-                // TODO mutex END
-                bUpdated[i] = false;
+            if( SENS->Sens[i].updated ) {
+                update( i, SENS->Sens[i].status, &SENS->Sens[i].Data );
+                SENS->Sens[i].updated = false;
             }
         }
     } else {
     // === 全描画
         for( int i=0; i < MAX_SENS; i++ ) {
-            // TODO mutex START
-            PN[i]->pushSprite( PN_pos[i].x, PN_pos[i].y );
-            // TODO mutex END
+            update( i, SENS->Sens[i].status, &SENS->Sens[i].Data );
         }
     }
 }
@@ -260,19 +210,44 @@ void M5_LCD::drawPanel( bool all ) {
  * @brief ステータスバーの描画
  */
 void M5_LCD::drawStatusBar() {
-    Serial.println("LCD::drawStatusBar()");
+    //Serial.println("LCD::drawStatusBar()");
     // TODO mutex START
+
+    // ステータスバー スプライト
+    TFT_eSprite STM = TFT_eSprite(&M5.Lcd);
+    STM.setColorDepth(8);
+    STM.createSprite( STT_WIDTH, STT_HEIGHT );
+    STM.fillSprite(BGC_STT);
+
+    // 本体情報
+    sData *dt = &SENS->EnvS.Data;
+    char   buff[64];
+    sprintf( buff, "%3.0fC %2.0f%% %4dhPa", dt->Templ, dt->Humid, dt->Press);    
+    String envStr = buff;
+    //Serial.println(envStr);
+
+    // 温度文字列描画
+    STM.setTextColor( TFT_DARKGREY, BGC_STAT );
+    STM.setTextFont( 1 );
+    STM.setTextSize( 1 );
+    STM.setCursor( 0, 5 );
+    STM.print( envStr );
+    
     // 時刻情報更新
     if( RTC != NULL ) {
         RTC->calc();
         String timeStr = RTC->getTimeSTR();
-        status.setTextColor( TFT_DARKGREY, BGC_STAT );
-        status.setTextFont( 1 );
-        status.setTextSize( LCD_TXT_SIZE_ST );
-        status.setPivot( LCD_WIDTH - M5.Lcd.textWidth( timeStr.c_str() ), 2 );
-        status.printToSprite( timeStr );
+        STM.setTextSize( 2 );
+        STM.setCursor( LCD_WIDTH - STM.textWidth( timeStr.c_str() ), 2 );   // X=242
+        STM.print( timeStr );
+
+        //Serial.println( timeStr );
+        // Serial.println( LCD_WIDTH - M5.Lcd.textWidth( timeStr.c_str() ) );
     }
-    status.pushSprite( ST_pos.x, ST_pos.y );
+
+    STM.pushSprite( ST_pos.x, ST_pos.y );
+    STM.deleteSprite();
+      
     // TODO mutex END
 }
 
@@ -359,20 +334,17 @@ uint8_t M5_LCD::ftoa1( float val ) {
     return (uint8_t)( (val - (int)val ) * 10 );
 }
 
-
-#if 0
-void drawGraph( TFT_eSprite *pan, float dt , uint16_t clr, uint16_t minute, GRAPH_t mode)
-{
-    switch ( mode ) {
-    // 温度グラフ
-    case GRAPH_t::TEMPL:
-        // 時刻から座標計算（温度の場合）
-        uint16_t x = 21 + (minute * 0.194444);
-        uint16_t y = 87 - (uint16_t)(dt / 0.555555);
-        // 点の描画
-        Serial.printf(" drawPixcel ( %d, %d )\r\n", x, y );
-        pan->drawPixel( x, y, clr );
-        break;
-    }
+/**
+ * @brief PANEL外観を描画する。
+ * @param sp 描画スプライト
+ * @param stat 温度ステータス
+ */
+void M5_LCD::makePanelBG( TFT_eSprite *sp, SSTAT_t stat ) {
+    Serial.printf("makePanelBG( %d ) \n", (int)stat);
+    uint16_t bgc = PANEL_bgc[(int)stat];
+    sp->fillSprite( bgc );
+    sp->drawFastVLine( 0,          0, PAN_HEIGHT, BGC_LINE_L );
+    sp->drawFastVLine( PAN_WIDTH,  0, PAN_HEIGHT, BGC_LINE_D ); 
+    sp->drawFastHLine( 0,          0, PAN_WIDTH , BGC_LINE_L );
+    sp->drawFastHLine( PAN_HEIGHT, 0, PAN_WIDTH , BGC_LINE_D );
 }
-#endif __GRAPH__

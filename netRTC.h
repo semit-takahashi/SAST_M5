@@ -33,6 +33,7 @@ class netRTC {
     const long    gmtOffset_sec = 3600 * 9;   // JST +9:00
     uint16_t      daylightOffset_sec = 0;
     struct tm     tf;                 // 現在のtm構造体
+    time_t        tm;                 // 現在のtime_t
     char          str_stime[16];      // 短い時間 MM/DD hh:mm
     char          str_ltime[24];      // 長い時間 YYYY-MM-DD hh:mm:ss.ttt
     uint16_t      minute;           
@@ -49,6 +50,8 @@ class netRTC {
     void        beep();
     time_t      getTimeRAW();
     bool        isSet();
+    double      getTimeDiffer( const time_t srcTime );
+    static bool makeTimeString( const time_t srcTime , char *timeSTR );
 };
 
 #endif //__NETRTC_H_

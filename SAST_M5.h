@@ -11,6 +11,14 @@
 #ifndef __SAST_M5_H__
 #define __SAST_M5_H__
 
+#define SAST_DEBUG      // デバッグフラグ
+
+#ifdef SAST_DEBUG
+#define PRT_MEMORY  { Serial.printf("heap_caps_get_free_size(MALLOC_CAP_DMA):%d\n", heap_caps_get_free_size(MALLOC_CAP_DMA) );  Serial.printf("heap_caps_get_largest_free_block(MALLOC_CAP_DMA):%d\n", heap_caps_get_largest_free_block(MALLOC_CAP_DMA) );}
+#else
+#define PRT_MEMORY  
+#endif
+
 #include <M5Stack.h>
 #include "image.h"      // 画面背景データ
 #include "time.h"
@@ -35,6 +43,7 @@ enum class SSTAT_t : int {
   normal =0,
   warn,
   caution,
+  disable,
 };
 
 
@@ -66,6 +75,16 @@ typedef struct {
   uint8_t x;
   uint8_t y;
 }st_POS;
+
+
+/**
+ * @brief Ambientデータ構造体
+ */
+typedef struct {
+  float  dt;
+  bool   use = false;
+}st_AMB;
+
 
 // 最大センサー数
 const uint8_t MAX_SENS = 6;

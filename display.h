@@ -18,6 +18,8 @@
 
 //Protype
 class sData;
+class SensList;
+class netRTC;
 
 /**
  * @brief LCDモニタ表示クラス
@@ -28,18 +30,6 @@ class M5_LCD {
         const uint8_t brightness[5] = { 0, 5, 20 ,80 ,200 }; //輝度テーブル
         uint8_t light = 4;      // 現在の輝度の保存
 
-        // 温度パネル スプライト
-        TFT_eSprite panel1      = TFT_eSprite(&M5.Lcd);
-        TFT_eSprite panel2      = TFT_eSprite(&M5.Lcd);
-        TFT_eSprite panel3      = TFT_eSprite(&M5.Lcd);
-        TFT_eSprite panel4      = TFT_eSprite(&M5.Lcd);
-        TFT_eSprite panel5      = TFT_eSprite(&M5.Lcd);
-        TFT_eSprite panel6      = TFT_eSprite(&M5.Lcd);
-        TFT_eSprite *PN[MAX_SENS] = { &panel1, &panel2, &panel3, &panel4, &panel5, &panel6 };
-
-        // ステータスバー　スプライト
-        TFT_eSprite status      = TFT_eSprite(&M5.Lcd);
-
         // QRコード表示文字列
         String URL;
         String LINE;
@@ -47,13 +37,12 @@ class M5_LCD {
         // netRTC(時刻取得用）
         netRTC *RTC;
 
+        // SesnsList(データ取得用)
+        SensList *SENS;
+
     public:
-        M5_LCD();
-        void init();
-        void setRTC( netRTC * rtc );
-        
-        bool update( uint8_t n, SSTAT_t stat, sData * dt );
-        void updateMyself( sData *dt );
+        void init( netRTC* rtc, SensList *sns ) ;
+        bool update( uint16_t n, SSTAT_t stat, sData *dt );
         
         void showURL();
         void showLINE();
@@ -70,6 +59,8 @@ class M5_LCD {
         void drawPanel( bool all = false );
         void drawStatusBar();
         uint8_t ftoa1( float val );
+        void makePanelBG( TFT_eSprite *sp, SSTAT_t stat );
+        
 
 
     private:
@@ -78,41 +69,33 @@ class M5_LCD {
         const uint16_t LCD_WIDTH      = 320;
         const uint16_t LCD_HEIGHT     = 240;
         const uint16_t LCD_TXT_SIZE   = 7;
+
         const uint16_t PAN_WIDTH      = 106;
         const uint16_t PAN_HEIGHT     = 111;
-        const uint16_t STT_WIDTH      = 320;
-        const uint16_t STT_HEIGHT     = 18;
-        const uint16_t LCD_TXT_SIZE_ST = 2;
 
-        // Panel Positions
-        //const uint8_t  PAN_POS_X0     = 0;
-        //const uint8_t  PAN_POS_X1     = 107;
-        //const uint8_t  PAN_POS_X2     = 213;
-        //const uint8_t  PAN_POS_Y0     = 0;
-        //const uint8_t  PAN_POS_Y1     = 111;
-        //const uint8_t  STT_POS_X0     = 0;
-        //const uint8_t  STT_POS_Y0     = 222;
-        bool  bUpdated[MAX_SENS]; 
+        const uint16_t STT_WIDTH      = 320;
+        const uint16_t STT_WIDTH_TP   = 242;
+        const uint16_t STT_WIDTH_TM   = 78;
+        const uint16_t STT_HEIGHT     = 18;
+        const uint16_t STT_TXT_Y      = 2;
+        const uint16_t STT_TXT_SIZE   = 1;
+
+
         const st_POS PN_pos[MAX_SENS] = { { 0,0 }, { 107, 0 }, { 213, 0}, { 0,111 }, { 107, 111 }, { 213, 111} }; 
         const st_POS ST_pos = { 0, 222 };
+        const st_POS TT_pos = { 242, 222 };
 
 
         //background color
         const uint16_t  BGC_PAN_NORM = M5.Lcd.color565( 0x00, 0x70, 0x33 );
-        const uint16_t  BGC_PAN_WARN = M5.Lcd.color565( 0x00, 0x14, 0x62 );
+        const uint16_t  BGC_PAN_WARN = M5.Lcd.color565( 0xff, 0x8a, 0x00 );
         const uint16_t  BGC_PAN_CAUT = M5.Lcd.color565( 0xf2, 0x00, 0x51 );
+        const uint16_t  BGC_PAN_NONE = 0x7BEF;  // TFT_DARKGRAY
         const uint16_t  BGC_STT      = M5.Lcd.color565( 0x00, 0x00, 0x7b );
         const uint16_t  BGC_TRANSP   = M5.Lcd.color565( 0x00, 0xff, 0x00 );
-
-
-#if 0
-        // Graph Area Data
-        const uint16_t CHART_WIDTH    = 320;
-        const uint16_t CHART_HEIGHT   = 113;
-        const uint8_t  CHART_POS_X    = 0;
-        const uint8_t  CHART_POS_Y    = 111;
-        const uint16_t  BGC_GRAP     = M5.Lcd.color565( 0x00, 0x38, 0x65 );
-#endif
+        const uint16_t  BGC_LINE_D   = TFT_DARKGREY;
+        const uint16_t  BGC_LINE_L   = TFT_LIGHTGREY;
+        const uint16_t  PANEL_bgc[4] = {BGC_PAN_NORM, BGC_PAN_WARN, BGC_PAN_CAUT, BGC_PAN_NONE };
 
 };
 
