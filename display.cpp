@@ -100,20 +100,20 @@ bool M5_LCD::update( uint16_t n, SSTAT_t stat, sData *dt ){
     if ( dt->Type == SENS_t::TH1 ) {
         // draw Pressure
         //Serial.println("Draw Pressure");
-        PN.drawChar( 40, 96 , str_press[0], fC, bC, 2 );
-        PN.drawChar( 52, 96 , str_press[1], fC, bC, 2 );
-        PN.drawChar( 64, 96 , str_press[2], fC, bC, 2 );
-        PN.drawChar( 76, 96 , str_press[3], fC, bC, 2 );
+        PN.drawChar( 40, 95 , str_press[0], fC, bC, 2 );
+        PN.drawChar( 52, 95 , str_press[1], fC, bC, 2 );
+        PN.drawChar( 64, 95 , str_press[2], fC, bC, 2 );
+        PN.drawChar( 76, 95 , str_press[3], fC, bC, 2 );
         PN.drawChar( 87, 101 , 'h', fC, bC, 1 );
         PN.drawChar( 94, 101 , 'P', fC, bC, 1 );
         PN.drawChar(100, 101 , 'a', fC, bC, 1 );
     } else {
         // draw AVS
         //Serial.println("Draw AVS");
-        PN.drawChar( 40, 96 , str_als[0], fC, bC, 2 );
-        PN.drawChar( 52, 96 , str_als[1], fC, bC, 2 );
-        PN.drawChar( 64, 96 , str_als[2], fC, bC, 2 );
-        PN.drawChar( 76, 96 , str_als[3], fC, bC, 2 );
+        PN.drawChar( 40, 95 , str_als[0], fC, bC, 2 );
+        PN.drawChar( 52, 95 , str_als[1], fC, bC, 2 );
+        PN.drawChar( 64, 95 , str_als[2], fC, bC, 2 );
+        PN.drawChar( 76, 95 , str_als[3], fC, bC, 2 );
         PN.drawChar( 94, 101 , 'L', fC, bC, 1 );
         PN.drawChar(100, 101 , 'X', fC, bC, 1 );
     }
@@ -343,8 +343,8 @@ void M5_LCD::makePanelBG( TFT_eSprite *sp, SSTAT_t stat ) {
     Serial.printf("makePanelBG( %d ) \n", (int)stat);
     uint16_t bgc = PANEL_bgc[(int)stat];
     sp->fillSprite( bgc );
-    sp->drawFastVLine( 0,          0, PAN_HEIGHT, BGC_LINE_L );
-    sp->drawFastVLine( PAN_WIDTH,  0, PAN_HEIGHT, BGC_LINE_D ); 
-    sp->drawFastHLine( 0,          0, PAN_WIDTH , BGC_LINE_L );
-    sp->drawFastHLine( PAN_HEIGHT, 0, PAN_WIDTH , BGC_LINE_D );
+    sp->drawFastVLine( 0,           0, PAN_HEIGHT, BGC_LINE_L );
+    sp->drawFastVLine( PAN_WIDTH-1, 0, PAN_HEIGHT, BGC_LINE_D ); 
+    sp->drawFastHLine( 0,           0, PAN_WIDTH , BGC_LINE_L );
+    sp->drawFastHLine( PAN_HEIGHT-1,0, PAN_WIDTH , BGC_LINE_D );
 }

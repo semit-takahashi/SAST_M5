@@ -76,14 +76,14 @@ class M5_LCD {
         const uint16_t STT_WIDTH      = 320;
         const uint16_t STT_WIDTH_TP   = 242;
         const uint16_t STT_WIDTH_TM   = 78;
-        const uint16_t STT_HEIGHT     = 18;
+        const uint16_t STT_HEIGHT     = 17;
         const uint16_t STT_TXT_Y      = 2;
         const uint16_t STT_TXT_SIZE   = 1;
 
 
-        const st_POS PN_pos[MAX_SENS] = { { 0,0 }, { 107, 0 }, { 213, 0}, { 0,111 }, { 107, 111 }, { 213, 111} }; 
+        const st_POS PN_pos[MAX_SENS] = { { 0,0 }, { 106, 0 }, { 212, 0}, { 0,111 }, { 106, 111 }, { 212, 111} }; 
         const st_POS ST_pos = { 0, 222 };
-        const st_POS TT_pos = { 242, 222 };
+        const st_POS TT_pos = { 242, 223 };
 
 
         //background color

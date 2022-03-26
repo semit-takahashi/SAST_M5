@@ -8,6 +8,7 @@
 */
 #define _VERSION_ "2.1.1 20220326"
 //#define DEBUG
+//#define __SCREEN_SHOT
 //#define TEST
 
 #include <M5Stack.h>
@@ -195,6 +196,11 @@ Ticker  int_EnvSens;
 void setup() {
   M5.begin();
   M5.Power.begin();
+#ifdef __SCREEN_SHOT
+  Serial.println("Use Screen shot!!");
+  M5.ScreenShot.init( &M5.Lcd, M5STACK_SD );
+  M5.ScreenShot.begin();
+#endif
 
   // シリアル通信機能の設定
   //Serial.begin(115200);
@@ -323,6 +329,10 @@ void loop() {
 
   // ボタンBが押された時の処理：Clear
   if (M5.BtnB.wasPressed()) {
+#ifdef __SCREEN_SHOT
+      M5.ScreenShot.snap();
+      Serial.println("Screen Shot!");
+#endif
   }
 
   // ボタンCが押された時の処理：Clear
