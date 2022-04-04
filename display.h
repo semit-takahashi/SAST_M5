@@ -45,7 +45,6 @@ class M5_LCD {
 
     public:
         void init( netRTC* rtc, SensList *sns ) ;
-        bool update( uint16_t n, SSTAT_t stat, sData *dt );
         
         void showURL();
         void showLINE();
@@ -57,14 +56,16 @@ class M5_LCD {
         void draw( bool all = false );
         void reDraw();
 
+        void drawStat();
+
     private:
         void showQR( String url, String caption = "" );
         void drawPanel( bool all = false );
         void drawStatusBar();
         uint8_t ftoa1( float val );
         void makePanelBG( TFT_eSprite *sp, SSTAT_t stat );
-        
-
+        bool update( uint16_t n, SSTAT_t stat, sData *dt );
+        bool view_state( uint16_t n, SSTAT_t stat, sData *dt );
 
     private:
         // Screen Area DATA

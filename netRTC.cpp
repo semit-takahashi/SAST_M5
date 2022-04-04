@@ -166,9 +166,21 @@ double netRTC::getTimeDiffer( const time_t srcTime ) {
     struct tm lTime;
     getLocalTime(&lTime);
     time_t lt = mktime(&lTime);
-    return difftime( srcTime, lt );
+    return difftime( lt, srcTime );
 }
 
+/**
+ * @brief 指定した分が経過したか？
+ * @param srcTime  time_t型の指定時刻
+ * @param min 比較する分（省略時5分）
+ * @return true 経過済
+ * @return fasle 未経過
+ */
+bool netRTC::isElapsed( const time_t srcTime, const int min ) {
+    double sec = getTimeDiffer( srcTime );
+    if( sec /60 > min ) return true;
+    return false;
+}
 /*
   void netRTC::viewTime()
   {

@@ -41,7 +41,7 @@ void M5_LCD::init( netRTC* rtc, SensList *sns ){
 bool M5_LCD::update( uint16_t n, SSTAT_t stat, sData *dt ){
     Serial.printf("M5_LCD::update() %d %d\n",n, stat );
     
-    // 温度パネル スプライトム準備
+    // 温度パネル スプライト準備
     TFT_eSprite PN = TFT_eSprite(&M5.Lcd);
     PN.setColorDepth(8);
     PN.createSprite( PAN_WIDTH, PAN_HEIGHT );
@@ -70,15 +70,6 @@ bool M5_LCD::update( uint16_t n, SSTAT_t stat, sData *dt ){
     sprintf( str_humid_l, "%1d", ftoa1(dt->Humid) );
     sprintf( str_press,   "%4d", (int)(dt->Press) );
     sprintf( str_als,     "%4d", (int)(dt->AVS)   );
-
-    int8_t BTLV=-1, RSSI=-1;
-    if( dt->Type == SENS_t::Lazurite ) {
-        BTLV = getBATT_lazurite( dt->batt );
-        RSSI = getRSSI_lazurite( dt->RSSI );
-        //Serial.printf("BTLV : %d\n",BTLV );
-        //Serial.printf("RSSI : %d\n",RSSI );
-    }
-
 
 #ifdef SAST_DEBUG
     Serial.printf("templ : %s\r\n", str_templ );
@@ -119,11 +110,11 @@ bool M5_LCD::update( uint16_t n, SSTAT_t stat, sData *dt ){
     } else {
         // draw AVS
         //Serial.println("Draw AVS");
-        PN.drawChar( 28, 95 , str_als[0], fC, bC, 2 );
-        PN.drawChar( 40, 95 , str_als[1], fC, bC, 2 );
-        PN.drawChar( 52, 95 , str_als[2], fC, bC, 2 );
-        PN.drawChar( 64, 95 , str_als[3], fC, bC, 2 );
-        PN.drawChar( 76, 95 , str_als[4], fC, bC, 2 );
+        PN.drawChar( 40, 95 , str_als[0], fC, bC, 2 );
+        PN.drawChar( 52, 95 , str_als[1], fC, bC, 2 );
+        PN.drawChar( 64, 95 , str_als[2], fC, bC, 2 );
+        PN.drawChar( 76, 95 , str_als[3], fC, bC, 2 );
+        PN.drawChar( 87, 95 , str_als[4], fC, bC, 2 );
         PN.drawChar( 94, 101 , 'L', fC, bC, 1 );
         PN.drawChar(100, 101 , 'X', fC, bC, 1 );
     }
@@ -131,6 +122,15 @@ bool M5_LCD::update( uint16_t n, SSTAT_t stat, sData *dt ){
     //LCDに転送
     //Serial.println("draw LCD");
     PN.pushSprite( PN_pos[n].x, PN_pos[n].y );
+
+    // ============================== バッテリー＆電波強度
+    int8_t BTLV=-1, RSSI=-1;
+    if( dt->Type == SENS_t::Lazurite ) {
+        BTLV = getBATT_lazurite( dt->batt );
+        RSSI = getRSSI_lazurite( dt->RSSI );
+        //Serial.printf("BTLV : %d\n",BTLV );
+        //Serial.printf("RSSI : %d\n",RSSI );
+    }
 
     // BATTアイコン（−1は未設定）
     if( BTLV != -1 ) {
@@ -319,8 +319,8 @@ void M5_LCD::showQR( String url, String caption ) {
    // 15秒待機
    wait_btnPress( 15 );
 
-    // 画面再表示
-    reDraw();
+  // 画面再表示
+  reDraw();
 }
 
 
@@ -360,4 +360,99 @@ void M5_LCD::makePanelBG( TFT_eSprite *sp, SSTAT_t stat ) {
     sp->drawFastVLine( PAN_WIDTH-1, 0, PAN_HEIGHT, BGC_LINE_D ); 
     sp->drawFastHLine( 0,           0, PAN_WIDTH , BGC_LINE_L );
     sp->drawFastHLine( PAN_HEIGHT-1,0, PAN_WIDTH , BGC_LINE_D );
+}
+
+
+/**
+ * @brief 最終更新からの経過時間の表示
+ * 
+ * @param n センサーNO
+ * @param stat 状態
+ * @param dt データ
+ */
+bool M5_LCD::view_state( uint16_t n, SSTAT_t stat, sData *dt ){
+    Serial.printf("M5_LCD::view_state() %d %d\n",n, stat );
+
+    // バッファ
+    char buff[40];
+
+    // 温度パネル スプライト準備
+    TFT_eSprite PN = TFT_eSprite(&M5.Lcd);
+    PN.setColorDepth(8);
+    PN.createSprite( PAN_WIDTH, PAN_HEIGHT );
+    makePanelBG( &PN, stat );
+    PN.setTextColor( TFT_WHITE );
+    PN.setTextFont( 0 );
+    PN.setTextSize( 2 );
+
+    // 更新からの経過時間計算
+    if( dt->date != 0 ) {
+      double sec = RTC->getTimeDiffer( dt->date );
+      long min = sec /60;
+      Serial.printf(" %d min / %f sec\n",min, sec);
+
+      if( min > 5 ) makePanelBG( &PN, SSTAT_t::warn );
+      sprintf( buff, "T:%2d",min);
+      PN.setCursor( 5,15 );
+      PN.print( buff );
+    }
+
+    // バッテリー
+    sprintf( buff, "B:%3.1f", dt->batt);
+    PN.setCursor( 5,35 );
+    PN.print( buff );
+
+    // RSSI
+    sprintf( buff, "R:%3d", dt->RSSI);
+    PN.setCursor( 5,55 );
+    PN.print( buff );
+
+
+    // ============================== LCD描画
+    //Serial.println("draw LCD");
+    PN.pushSprite( PN_pos[n].x, PN_pos[n].y );
+
+    // ============================== バッテリー＆電波強度
+    int8_t BTLV=-1, RSSI=-1;
+    if( dt->Type == SENS_t::Lazurite ) {
+        BTLV = getBATT_lazurite( dt->batt );
+        RSSI = getRSSI_lazurite( dt->RSSI );
+        //Serial.printf("BTLV : %d\n",BTLV );
+        //Serial.printf("RSSI : %d\n",RSSI );
+    }
+
+    // BATTアイコン（−1は未設定）
+    if( BTLV != -1 ) {
+        TFT_eSprite BATT = TFT_eSprite(&M5.Lcd);
+        BATT.setColorDepth(8);
+        BATT.createSprite( BATT_Width, BATT_Height );
+        BATT.pushImage( 0, 0, BATT_Width, BATT_Height, BATT_img[BTLV]);
+        BATT.pushSprite( PN_pos[n].x+86, PN_pos[n].y+3, BGC_TRANSP );
+        BATT.deleteSprite();
+    }
+
+    //RSSIアイコン（-1は未設定）
+    if( RSSI != -1 ) {
+        TFT_eSprite ANTN = TFT_eSprite(&M5.Lcd);
+        ANTN.setColorDepth(8);
+        ANTN.createSprite( ANT_Width, ANT_Height );
+        ANTN.pushImage( 0, 0, ANT_Width, ANT_Height, ANT_img[RSSI]);
+        ANTN.pushSprite( PN_pos[n].x+64, PN_pos[n].y+3, BGC_TRANSP );
+        ANTN.deleteSprite();
+    }
+
+    PN.deleteSprite();
+}
+
+/**
+ * @brief センサーステータス状態の表示
+ */
+void M5_LCD::drawStat() {
+    for( int i=0; i < MAX_SENS; i++ ) {
+        view_state( i, SENS->Sens[i].status, &SENS->Sens[i].Data );
+    }
+    wait_btnPress( 15 );  // 15秒待機
+
+    // 画面再表示
+    reDraw();
 }

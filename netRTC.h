@@ -52,6 +52,7 @@ class netRTC {
     bool        isSet();
     double      getTimeDiffer( const time_t srcTime );
     static bool makeTimeString( const time_t srcTime , char *timeSTR );
+    bool        isElapsed( const time_t srcTime, const int min = 5 );
 };
 
 #endif //__NETRTC_H_

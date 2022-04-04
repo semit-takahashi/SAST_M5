@@ -340,9 +340,13 @@ void loop() {
     buff.trim();
     if ( buff.length() != 0 ) {
       //Serial.print("Recv: "); Serial.println(buff);
-      dt = S_L920.decode( buff );
-      dt->date = RTC.getTimeRAW();    // 現在時刻を設定
-      SENSORS.update( dt );
+      if( buff[0] != 'R' ) { 
+        dt = S_L920.decode( buff );
+        dt->date = RTC.getTimeRAW();    // 現在時刻を設定
+        SENSORS.update( dt );
+      }else{
+        Serial.print("Recv -> Skip "); Serial.println(buff);
+      }
     }
   }
 
@@ -367,6 +371,7 @@ void loop() {
 
   // ボタンBが押された時の処理：Clear
   if (M5.BtnB.wasPressed()) {
+    LCD.drawStat();
 #ifdef __SCREEN_SHOT
       M5.ScreenShot.snap();
       Serial.println("Screen Shot!");
