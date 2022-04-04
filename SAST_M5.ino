@@ -6,10 +6,11 @@
  *  @date 2022-03-07
  *  @copyright Copyright (c) 2022 SEM-IT 
 */
-#define _VERSION_ "2.1.1 20220326"
+#define _VERSION_ "2.2.0 20220404"
 //#define DEBUG
 //#define __SCREEN_SHOT
 //#define TEST
+//#define SAST_DEBUG
 
 #include <M5Stack.h>
 #include "SAST_M5.h"
@@ -22,9 +23,8 @@
 #include "display.h"
 #include "sensor.h"
 
-
 // MUTEX（画面描画時利用）
-portMUX_TYPE mutex = portMUX_INITIALIZER_UNLOCKED;
+//portMUX_TYPE mutex = portMUX_INITIALIZER_UNLOCKED;
 
 /*===================================================== Class ENV III SENS ===*/
 class sens_EnvSensIII {
@@ -56,7 +56,7 @@ class sens_EnvSensIII {
   bool isExist(){return use;}
 };
 
-/* ==========================  Lazurite920J Class === */
+/* ================================================  Lazurite920J Class === */
 class sens_L902J {
   public:
     uint16_t  seq = 0;        //シーケンス番号（発信元のシーケンス）
@@ -164,7 +164,46 @@ class sens_L902J {
     }
 };
 
+/**
+ * @brief Get the BATT Levle for lazurite
+ * @param batt データ
+ * @return int8_t 0~4アイコンindex
+ */
+int8_t getBATT_lazurite( float batt ) {
+    if( batt >= 2.9 ) return 3;
+    if( batt >= 2.7 ) return 2;
+    if( batt >= 2.5 ) return 1;
+    return 0;
+}
 
+/**
+ * @brief Get the RSSI Levl for lazurite
+ * @param rssi データ
+ * @return int8_t 0~4アイコンindex
+ */
+int8_t getRSSI_lazurite( int16_t rssi ) {
+    if( rssi >= 150 ) return 3;
+    if( rssi >= 110 ) return 2;
+    if( rssi >= 80  ) return 1;
+    return 0;
+}
+
+/**
+ * @brief ボタン押下orタイムアウトまでブロック
+ * @param sec タイムアウト秒
+ * @return true ボタン押下で終了
+ * @return false タイムアウトで終了
+ */
+bool wait_btnPress( uint16_t sec ) {
+    for( int i=0; i < sec * 10 ; i++ ) {
+        M5.update();
+        if (M5.BtnA.wasPressed() || M5.BtnB.wasPressed() || M5.BtnC.wasPressed()) {
+            return true;
+        }
+        delay(100);
+    }
+    return false;
+}
 /* ======================================================================================= Globals */
 
 // センサーリスト
@@ -202,15 +241,6 @@ void setup() {
   M5.ScreenShot.begin();
 #endif
 
-  // シリアル通信機能の設定
-  //Serial.begin(115200);
-
-  // INI呼び出し
-  ini.setSensorList( &SENSORS );   // Singletonにしても良いかも
-  ini.load();
-
-  //SENSORS.dump();
-
   // 初期画面設定
   M5.Lcd.setTextSize(2);
   M5.Lcd.fillScreen(BGC_STAT);
@@ -218,7 +248,17 @@ void setup() {
   Serial.printf("SAST M5 Ver.%s\r\n", _VERSION_ );
   M5.Lcd.printf("SAST M5 Ver.%s\r\n", _VERSION_ );
   if (!M5.Power.canControl()) M5.Lcd.println(" ~~ Can't Power Control ~~");
-  delay(500);
+
+// INI呼び出し
+  M5.Lcd.print("\nLoad INI ... ");
+  Serial.println("\nLoad INI ... ");
+  ini.setSensorList( &SENSORS );   // Singletonにしても良いかも
+  ini.load();
+  M5.Lcd.println("done.");
+  Serial.println("done.");
+
+// DEBUG
+  //SENSORS.dump();
 
   // 時刻設定(Wi-Fi接続)
   for( int i=0; i < 3; i++ ) {
@@ -236,33 +276,31 @@ void setup() {
     while(1);
   }
 
-// シリアル通信機能2の設定（Lazurite通信部）
+  // シリアル通信機能2の設定（Lazurite通信部）
   // Serial2.begin(unsigned long baud, uint32_t config, int8_t rxPin, int8_t txPin, bool invert)
-  Serial2.begin(115200, SERIAL_8N1, 16, 17);
-  Serial2.setRxBufferSize(128);
+  Serial2.begin(115200, SERIAL_8N1, 16, 17 );
+  //Serial2.setRxBufferSize(128);
   
   // ハンドシェーク
-  Serial.print("setup Lazurite HOST ");
-  M5.Lcd.printf("\r\nWakeup HOST ");
-  Serial2.flush();
+  Serial.println("setup Lazurite HOST");
+  M5.Lcd.print("\nWakeup HOST ");
   Serial2.println("SAST");
-  delay(1000);
-  while( !Serial2.available() ) {
-    static uint16_t cnt = 0;
-    String buff = Serial2.readString();
-    buff.trim();
-    //Serial.printf("buff:%s\r\n",buff.c_str());
+  Serial2.flush();
+  delay(300);
+
+  for( int i=0; i<5; i++ ) {
+    String buff = Serial2.readStringUntil('\n');
+    Serial.printf("buff:%s\r\n",buff.c_str());
     M5.Lcd.print('.');
-    if( buff == "Lazurite Ready" ) {
-      Serial.println(" Ready!");
+    buff.trim();
+    if( buff.startsWith("Ready") ) {
+      M5.Lcd.println(buff);
+      Serial.println(buff);
       break;
     }
-    delay(100);
-    if( ++cnt == 5 ) {
-      Serial.println(" Timeout!");
-      break;
-    }
+    delay(800);
   }
+
   // 0.5秒待ち
   delay(500);
   
@@ -301,7 +339,7 @@ void loop() {
     buff = Serial2.readStringUntil('\n');
     buff.trim();
     if ( buff.length() != 0 ) {
-      Serial.print("Recv Data"); Serial.println(buff);
+      //Serial.print("Recv: "); Serial.println(buff);
       dt = S_L920.decode( buff );
       dt->date = RTC.getTimeRAW();    // 現在時刻を設定
       SENSORS.update( dt );
@@ -341,10 +379,10 @@ void loop() {
   }
 
   // 画面更新]
-  Serial.println("loop::Draw LCD");
+  //Serial.println("loop::Draw LCD");
   LCD.draw( );
 
-  // 
+  // Wait
   delay(500);
   //Serial.println("End Loop");
 }

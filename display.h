@@ -16,10 +16,13 @@
 #include "netRTC.h"
 #include "sensor.h"
 
-//Protype
+// -----------------Protype
 class sData;
 class SensList;
 class netRTC;
+bool wait_btnPress( uint16_t sec );
+int8_t getBATT_lazurite( float batt );
+int8_t getRSSI_lazurite( int16_t rssi );
 
 /**
  * @brief LCDモニタ表示クラス

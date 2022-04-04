@@ -39,13 +39,13 @@ void M5_LCD::init( netRTC* rtc, SensList *sns ){
  * @param dt センサデータ
  */
 bool M5_LCD::update( uint16_t n, SSTAT_t stat, sData *dt ){
-    Serial.printf("M5_LCD::update() %d %d \n",n, (int)stat );
+    Serial.printf("M5_LCD::update() %d %d\n",n, stat );
     
     // 温度パネル スプライトム準備
     TFT_eSprite PN = TFT_eSprite(&M5.Lcd);
     PN.setColorDepth(8);
     PN.createSprite( PAN_WIDTH, PAN_HEIGHT );
-    makePanelBG( &PN, SSTAT_t::normal );
+    makePanelBG( &PN, stat );
     PN.setTextColor( TFT_WHITE );
     PN.setTextFont( 1 );
 
@@ -57,18 +57,27 @@ bool M5_LCD::update( uint16_t n, SSTAT_t stat, sData *dt ){
 
     // 文字列変換
     //Serial.println("Data Traslation");
+    if( dt->AVS > 99999 ) dt->AVS = 99999;   // AVS Limit
     char    str_templ[5];
     char    str_humid[5];
     char    str_templ_l[2];
     char    str_humid_l[2];
     char    str_press[5];
-    char    str_als[5];
+    char    str_als[6];
     sprintf( str_templ,   "%3d", (int)(dt->Templ) );
     sprintf( str_humid,   "%3d", (int)(dt->Humid) );
     sprintf( str_templ_l, "%1d", ftoa1(dt->Templ) );
     sprintf( str_humid_l, "%1d", ftoa1(dt->Humid) );
     sprintf( str_press,   "%4d", (int)(dt->Press) );
     sprintf( str_als,     "%4d", (int)(dt->AVS)   );
+
+    int8_t BTLV=-1, RSSI=-1;
+    if( dt->Type == SENS_t::Lazurite ) {
+        BTLV = getBATT_lazurite( dt->batt );
+        RSSI = getRSSI_lazurite( dt->RSSI );
+        //Serial.printf("BTLV : %d\n",BTLV );
+        //Serial.printf("RSSI : %d\n",RSSI );
+    }
 
 
 #ifdef SAST_DEBUG
@@ -110,37 +119,41 @@ bool M5_LCD::update( uint16_t n, SSTAT_t stat, sData *dt ){
     } else {
         // draw AVS
         //Serial.println("Draw AVS");
-        PN.drawChar( 40, 95 , str_als[0], fC, bC, 2 );
-        PN.drawChar( 52, 95 , str_als[1], fC, bC, 2 );
-        PN.drawChar( 64, 95 , str_als[2], fC, bC, 2 );
-        PN.drawChar( 76, 95 , str_als[3], fC, bC, 2 );
+        PN.drawChar( 28, 95 , str_als[0], fC, bC, 2 );
+        PN.drawChar( 40, 95 , str_als[1], fC, bC, 2 );
+        PN.drawChar( 52, 95 , str_als[2], fC, bC, 2 );
+        PN.drawChar( 64, 95 , str_als[3], fC, bC, 2 );
+        PN.drawChar( 76, 95 , str_als[4], fC, bC, 2 );
         PN.drawChar( 94, 101 , 'L', fC, bC, 1 );
         PN.drawChar(100, 101 , 'X', fC, bC, 1 );
     }
 
-    // BATT TODO
-    TFT_eSprite BATT = TFT_eSprite(&M5.Lcd);
-    BATT.setColorDepth(8);
-    BATT.createSprite( BATT_Width, BATT_Height );
-    BATT.pushImage( 0, 0, BATT_Width, BATT_Height, BATT_img[n%4]);
-
-    //ANT TODO
-    TFT_eSprite ANTN = TFT_eSprite(&M5.Lcd);
-    ANTN.setColorDepth(8);
-    ANTN.createSprite( ANT_Width, ANT_Height );
-    ANTN.pushImage( 0, 0, ANT_Width, ANT_Height, ANT_img[n%4]);
-
     //LCDに転送
-    Serial.println("draw LCD");
+    //Serial.println("draw LCD");
     PN.pushSprite( PN_pos[n].x, PN_pos[n].y );
-    BATT.pushSprite( PN_pos[n].x+86, PN_pos[n].y+3, BGC_TRANSP );
-    ANTN.pushSprite( PN_pos[n].x+64, PN_pos[n].y+3, BGC_TRANSP );
+
+    // BATTアイコン（−1は未設定）
+    if( BTLV != -1 ) {
+        TFT_eSprite BATT = TFT_eSprite(&M5.Lcd);
+        BATT.setColorDepth(8);
+        BATT.createSprite( BATT_Width, BATT_Height );
+        BATT.pushImage( 0, 0, BATT_Width, BATT_Height, BATT_img[BTLV]);
+        BATT.pushSprite( PN_pos[n].x+86, PN_pos[n].y+3, BGC_TRANSP );
+        BATT.deleteSprite();
+    }
+
+    //RSSIアイコン（-1は未設定）
+    if( RSSI != -1 ) {
+        TFT_eSprite ANTN = TFT_eSprite(&M5.Lcd);
+        ANTN.setColorDepth(8);
+        ANTN.createSprite( ANT_Width, ANT_Height );
+        ANTN.pushImage( 0, 0, ANT_Width, ANT_Height, ANT_img[RSSI]);
+        ANTN.pushSprite( PN_pos[n].x+64, PN_pos[n].y+3, BGC_TRANSP );
+        ANTN.deleteSprite();
+    }
 
     // メモリ解放
     PN.deleteSprite();
-    BATT.deleteSprite();
-    ANTN.deleteSprite();
-
 }
 
 /**
@@ -303,8 +316,8 @@ void M5_LCD::showQR( String url, String caption ) {
         M5.Lcd.setTextSize( 2 );
         M5.Lcd.drawString( caption, 0, 0 );
     }
-    // TODO ボタン押下遷移も考慮
-    delay( 15*1000 ); // 30秒表示
+   // 15秒待機
+   wait_btnPress( 15 );
 
     // 画面再表示
     reDraw();
@@ -340,7 +353,7 @@ uint8_t M5_LCD::ftoa1( float val ) {
  * @param stat 温度ステータス
  */
 void M5_LCD::makePanelBG( TFT_eSprite *sp, SSTAT_t stat ) {
-    Serial.printf("makePanelBG( %d ) \n", (int)stat);
+    //Serial.printf("makePanelBG( %d ) \n", (int)stat);
     uint16_t bgc = PANEL_bgc[(int)stat];
     sp->fillSprite( bgc );
     sp->drawFastVLine( 0,           0, PAN_HEIGHT, BGC_LINE_L );

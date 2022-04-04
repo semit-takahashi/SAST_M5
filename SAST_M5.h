@@ -11,8 +11,6 @@
 #ifndef __SAST_M5_H__
 #define __SAST_M5_H__
 
-#define SAST_DEBUG      // デバッグフラグ
-
 #ifdef SAST_DEBUG
 #define PRT_MEMORY  { Serial.printf("heap_caps_get_free_size(MALLOC_CAP_DMA):%d\n", heap_caps_get_free_size(MALLOC_CAP_DMA) );  Serial.printf("heap_caps_get_largest_free_block(MALLOC_CAP_DMA):%d\n", heap_caps_get_largest_free_block(MALLOC_CAP_DMA) );}
 #else

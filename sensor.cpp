@@ -148,9 +148,11 @@ void Sensor::init( const SENS_t type, const String name, const String id, const 
  * @param dt コピー元センサーデータ
  */
 void Sensor::update( const sData *dt) {
-    Serial.println("Sensor::update()");
+    //Serial.println("Sensor::update()");
     // 一つ前のデータにコピー
+    
     prevData.ID      = Data.ID;
+    prevData.Type    = Data.Type;
     prevData.Templ   = Data.Templ;
     prevData.Humid   = Data.Humid;
     prevData.Press   = Data.Press;
@@ -161,6 +163,7 @@ void Sensor::update( const sData *dt) {
 
     //新しいデータに更新
     Data.ID      = dt->ID;
+    Data.Type    = dt->Type;
     Data.Templ   = dt->Templ;
     Data.Humid   = dt->Humid;
     Data.Press   = dt->Press;
@@ -269,8 +272,8 @@ SensList::SensList(){
  */
 bool SensList::add( const SENS_t type, const  String id, const  String name , SensThresh th,
                     const uint8_t a_templ, const uint8_t a_humid, const uint8_t a_avs ){
-    Serial.println("SensList::add()");
-    Serial.printf("Type %d / Name %s / ID: %s \n",type, name.c_str(), id.c_str() );
+    //Serial.println("SensList::add()");
+    Serial.printf("Add : Type %d , Name %s , ID: %s \n",type, name.c_str(), id.c_str() );
     
     if( type == SENS_t::None ) return false;
     if( Num < MAX_SENS ) {
@@ -289,7 +292,7 @@ bool SensList::add( const SENS_t type, const  String id, const  String name , Se
  * @return false センサーが無い
  */
 bool SensList::update( const  sData *dt ) {
-    Serial.println("SensList::update()");
+    //Serial.println("SensList::update()");
     for( int i=0; i < Num; i++  ) {
         if( Sens[i].Type == dt->Type ) {    // 高速化のためTypeで一次判定
             if( Sens[i].ID == dt->ID ) {    // 次に文字列比較(ID)
