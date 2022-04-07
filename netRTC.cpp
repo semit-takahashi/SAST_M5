@@ -10,6 +10,7 @@
  */
 #include "netRTC.h"
 
+
 /**
  * @brief WiFiアクセスポイント情報を設定
  * @param wifi_ssid 
@@ -19,8 +20,8 @@ void netRTC::setAP( const char *wifi_ssid, const char *wifi_key )
 {
   ssid = wifi_ssid;
   key = wifi_key;
-  IsSet = true;
-  Serial.printf(" %s / %s\n",ssid, key );
+  IsWiFi_Set = true;
+  Serial.printf("setAP() %s / %s\n",wifi_ssid, wifi_key );
 }
 
 /**
@@ -31,14 +32,14 @@ void netRTC::setAP( const char *wifi_ssid, const char *wifi_key )
  */
 bool netRTC::setNTP()
 {
-  if ( !IsSet ) return false;
+  if ( !IsWiFi_Set ) return false;
   uint8_t cnt = 20;
   IPAddress ip;
 
   // connect to WiFi
-  M5.Lcd.printf("connecting to\r\n %s ", ssid);
-  Serial.printf("Connecting to %s ", ssid);
-  WiFi.begin(ssid, key);
+  M5.Lcd.printf("connecting to\r\n %s ", ssid.c_str());
+  Serial.printf("Connecting to %s ", ssid.c_str());
+  WiFi.begin(ssid.c_str(), key.c_str());
   while (WiFi.status() != WL_CONNECTED) {
     if ( cnt-- == 0 ) {
       WiFi.disconnect(true);
@@ -57,8 +58,8 @@ bool netRTC::setNTP()
   Serial.print(" CONNECTED\n\n ["); Serial.print(ip);Serial.println("]\n");
   
   // Set netRTC time to local
-  IsSet = true;
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  IsWiFi_Set = true;
+  configTime(gmtOffset_sec, daylightOffset_sec, ntp1, ntp2, ntp3 );
   calc();
   M5.Lcd.println( str_stime );
   Serial.printf("%s ( %d ) \n",str_stime, tm );
@@ -120,7 +121,7 @@ void netRTC::reflesh() {
     uint8_t cnt = 20;
     Serial.print("Reflesh TIME: set netRTC ");
     rst_count++;
-    WiFi.begin(ssid, key);
+    WiFi.begin(ssid.c_str(), key.c_str());
     while (WiFi.status() != WL_CONNECTED) {
       if ( cnt-- == 0 ) {
         Serial.println("\r\nERROR Not Connect skip!!\r\n");
@@ -129,7 +130,7 @@ void netRTC::reflesh() {
       }
       delay(500);
     }
-    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+    configTime(gmtOffset_sec, daylightOffset_sec, ntp1, ntp2, ntp3 );
     WiFi.disconnect(true);
     WiFi.mode(WIFI_OFF);
     Serial.println(" .. done.");
@@ -154,7 +155,11 @@ void netRTC::beep(){
  * @return false 
  */
 bool netRTC::isSet(){
-  return IsSet;
+  return IsWiFi_Set;
+}
+
+bool netRTC::isConnect() {
+  return WiFi.status() == WL_CONNECTED ? true : false;
 }
 
 /**
@@ -177,6 +182,8 @@ double netRTC::getTimeDiffer( const time_t srcTime ) {
  * @return fasle 未経過
  */
 bool netRTC::isElapsed( const time_t srcTime, const int min ) {
+    if( srcTime == 0 ) return true;    // srcTimeが未設定の場合は経過済みと見なす
+    
     double sec = getTimeDiffer( srcTime );
     if( sec /60 > min ) return true;
     return false;
@@ -193,3 +200,156 @@ bool netRTC::isElapsed( const time_t srcTime, const int min ) {
     M5.Lcd.drawString( str_stime, x, y );
   }
 */
+
+/**
+ * @brief 無線LANに接続
+ * 
+ * @return true 
+ * @return false 
+ */
+bool netRTC::connect() {
+  if ( !IsWiFi_Set ) return false;
+  if ( WiFi.status() == WL_CONNECTED ) return true;
+  uint8_t cnt = 20;
+  IPAddress ip;
+
+  Serial.printf("Connecting to %s ", ssid.c_str());
+  WiFi.begin(ssid.c_str(), key.c_str());
+  while (WiFi.status() != WL_CONNECTED) {
+    if ( cnt-- == 0 ) {
+      WiFi.disconnect(true);
+      WiFi.mode(WIFI_OFF);
+      Serial.printf(" Connect ERROR! (%d)\r\n", WiFi.status());
+      beep();
+      return false;
+    }
+    delay(500);
+    Serial.print(".");
+  }
+  ip = WiFi.localIP();
+  Serial.print(" CONNECTED\n\n ["); Serial.print(ip);Serial.println("]\n");
+
+  return true;
+}
+
+/**
+ * @brief 無線LANを切断
+ * 
+ * @return true  成功
+ * @return false 無線LAN接続してない
+ */
+bool netRTC::disconnect() {
+  if ( !IsWiFi_Set ) return false;
+  if ( WiFi.status() != WL_CONNECTED ) return true;
+
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+  Serial.println("WiFi disconnect.");
+  return true;
+}
+
+/**
+ * @brief Ambientへのグラフ作成処理初期化
+ * 
+ * @param channel Ambientチャンネル
+ * @param write  ライトキー
+ * @param read  リードキー（未使用）
+ */
+void netRTC::setupAmbient( const int channel, const char* write, const char* read ) {
+  connect();
+  WiFi.setAutoConnect( true ); //TODO 自動接続？
+  AMB.begin( channel, write, &Client );
+  amb_use = true;
+
+}
+/*
+void netRTC::setAmbient( Ambient *amb ) {
+  _AMB = amb;
+}
+*/
+/**
+ * @brief Ambientにデータ送信
+ * @param dt データ構造対
+ * @return true 成功
+ * @return false 失敗
+ */
+bool netRTC::sendAmbient( st_AMB dt[]) {
+  Serial.println("netRTC::sendAmbient()");
+  for( int i=0; i < MAX_AMB; i++) {
+    if( dt[i].use ) {
+      //Serial.printf(" %d = %s\n", i+1, String( dt[i].dt, 1).c_str() );
+      AMB.set( i+1, String( dt[i].dt, 1).c_str());
+    }
+  }
+  bool res = AMB.send();
+  Serial.printf("res : %d (%d)\n",res, AMB.status);
+  return res;
+}
+
+
+/**
+ * @brief GASの初期設定
+ * @param URL 
+ */
+void netRTC::setupGAS( const char* URL ) {
+  GAS_URL = URL;
+  GAS_use = true;
+}
+
+bool netRTC::sendGAS( String data ){
+
+}
+
+
+/**
+ * @brief LINE通知の情報を設定する
+ * @param URL 通知接続先URL
+ * @param token トークン（）
+ */
+void netRTC::setupNotify( const char* token ) {
+  LINE_token = token;
+  LINE_use = true;
+}
+
+/**
+ * @brief LINE Notifyの通知（使う前にsetupNotifyを実行する）
+ * @param mess 
+ * @return true 
+ * @return false 
+ */
+bool netRTC::sendNotify( String mess ){
+  Serial.println("sendNotify()");
+  if ( !LINE_use ) return false;
+
+  WiFiClientSecure client;
+
+  if (!client.connect(LINE_Notify, 443)) {
+    delay(2000);
+    Serial.printf("sendNotify:connection Error!! %s\n",LINE_Notify);
+    return false;
+  }
+  //Serial.println("connect..");
+
+  String query = String("message=") + mess;
+  String request = String("") +
+               "POST /api/notify HTTP/1.1\r\n" +
+               "Host: " + LINE_Notify + "\r\n" +
+               "Authorization: Bearer " + LINE_token + "\r\n" +
+               "Content-Length: " + String(query.length()) +  "\r\n" + 
+               "Content-Type: application/x-www-form-urlencoded\r\n\r\n" +
+                query + "\r\n";
+  //Serial.println(request);
+
+  client.print(request);
+  
+  while (client.connected()) {
+    String line = client.readStringUntil('\n');
+    if (line == "\r") {
+      Serial.println("Response : headers received");
+      break;
+    }
+  }
+  String line = client.readStringUntil('\n');
+  Serial.println(line);
+  return true;
+}

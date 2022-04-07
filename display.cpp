@@ -273,13 +273,6 @@ void M5_LCD::setURL( String url ) {
 }
 
 /**
- * @brief グラフ表示用 QRコードを画面に表示
- */
-void M5_LCD::showURL(){
-    showQR( URL, "Graph" ); 
-}
-
-/**
  * @brief LINE用QRコード表示文字列設定（LINE）
  * @param url 　URL文字列
  */
@@ -288,27 +281,50 @@ void M5_LCD::setLINE( String url ) {
 }
 
 /**
- * @brief 通医LINEグループ QRコードを画面に表示
+ * @brief グラフ表示用 QRコードを画面に表示
+ * @note Cボタンを押すと、別のRQRを表示して切り替える
  */
-void M5_LCD::showLINE(){
-    showQR( LINE, "LINE" ); 
+void M5_LCD::showInfo(){
+    uint8_t show = 0;
+    const uint8_t MAX_QR = 2;
+    while(1) {
+        show = (show == MAX_QR) ? 0 : show;
+        if( !showQR( show++ ) ) continue;
+        BTN_t btn = wait_btnPress( 10 );
+        if( btn == BTN_t::C ) continue;
+        else break;
+    }
+    reDraw();
 }
 
+/**
+ * @brief 
+ * 
+ * @param num 
+ * @return true 
+ * @return false 
+ */
+bool M5_LCD::showQR( uint8_t num ) {
+    Serial.printf("showQR(%d)\n",num);
+    switch( num ) {
+        case 0:  return drawQR( URL, "Graph");
+        case 1:  return drawQR( LINE, "LINE");
+    }
+}
 
 /**
  * @brief QRコードとキャプションを30秒間表示する
  * @param url QRコードに表示するURL
  * @param caption 文字キャプション（未指定時は表示しない）
  */
-void M5_LCD::showQR( String url, String caption ) {
+bool M5_LCD::drawQR( String url, String caption ) {
     Serial.println("LCD::showQR()");
     Serial.println(url);
     Serial.println(caption);
-    if( url.length() == 0) return;       // URL未設定時は何もしない
+    if( url.length() == 0) return false;       // URL未設定時は何もしない
 
     M5.Lcd.clear();
-    M5.Lcd.qrcode( URL, 50, 10, 220, 6 );
-    // 
+    M5.Lcd.qrcode( url, 50, 10, 220, 6 );
 
     if( caption.length() != 0 ) {
         M5.Lcd.setTextColor( TFT_DARKGREY, BGC_STAT );
@@ -316,11 +332,7 @@ void M5_LCD::showQR( String url, String caption ) {
         M5.Lcd.setTextSize( 2 );
         M5.Lcd.drawString( caption, 0, 0 );
     }
-   // 15秒待機
-   wait_btnPress( 15 );
-
-  // 画面再表示
-  reDraw();
+    return true;
 }
 
 

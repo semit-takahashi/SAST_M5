@@ -19,12 +19,13 @@
 // Protype
 class M5_LCD;
 
+
 /**
  * @brief 閾値情報クラス
  * 
  */
 class SensThresh {
-    private:
+    public:
         float warn_templ;
         float caut_templ;
         float warn_humid;
@@ -81,6 +82,7 @@ class Sensor {
         SSTAT_t status;
         SensThresh thr;
         double  diffSec;
+        time_t  notify_time = 0;
 
         // Ambient通知番号設定
         uint8_t amb_templ;
@@ -104,6 +106,7 @@ class SensList {
     public:
         Sensor  Sens[MAX_SENS] ;    // センサー情報配列
         Sensor  EnvS;               // 本体センサー
+        bool    _notify[MAX_SENS];  // 通知が必要なセンサー
         uint8_t Num = 0;            // 登録センサー数
         M5_LCD  *LCD;               // LCD表示画面クラス
       //Ambient *amb;               // グラフ化クラス
@@ -115,7 +118,7 @@ class SensList {
         bool update( const sData *dt );
         void updateEnv( const sData *dt );
         Sensor *getSensor( const String id, const SENS_t type );
-        void getAmbientData( st_AMB *dt[] );
+        void getAmbientData( st_AMB dt[] );
 
         void dump();
 };

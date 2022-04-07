@@ -41,6 +41,9 @@ class INF {
         const char *iniFile = "/setup.ini";
 
     public:
+        // 本体Name
+        String Name;
+
         // Wifi
         st_wifi wifi[3];
 
@@ -51,13 +54,14 @@ class INF {
         SensThresh thresh;
 
         // ambient
-        String  amb_chID;
+        uint16_t  amb_chID;
         String  amb_wKey;
         String  amb_rKey;
 
         // LINE
         String  LINE_token;
-        String  LINE_URL;
+        String  LINE_NotifyURL;
+        String  LINE_GroupURL;
 
         // Google Spredseet
         String  GS_token;

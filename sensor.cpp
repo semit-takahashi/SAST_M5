@@ -127,12 +127,13 @@ void Sensor::init( const SENS_t type, const String name, const String id, const 
     updated = false;
     thr.copy( th );
     use = true;
+    notify_time = 0;
 
     amb_templ = a_templ;
     amb_humid = a_humid;
     amb_avs   = a_avs;  
 
-#if 0 
+#if 0
     Serial.printf("Type: %d\n",Type);
     Serial.printf("Name: %s\n",Name);
     Serial.printf("ID  : %s\n",ID);
@@ -183,8 +184,12 @@ void Sensor::update( const sData *dt) {
     updated = true;
 
     // センターデータの状態検知
-    status = thr.getStatusTempl( dt->Templ );
-
+    SSTAT_t new_stat = thr.getStatusTempl( dt->Templ );
+    if( status != new_stat ) {
+      // センサー状態が前回と異なる場合は、通知をクリア
+      notify_time = 0;
+      status = new_stat;
+    }
     //Sensor::dump(this);
 }
 
@@ -302,13 +307,11 @@ bool SensList::update( const  sData *dt ) {
                 Sens[i].update( dt );
                 //Serial.printf("status %d\n",Sens[i].status);
 
-                // TODO Ambientに通知
-                // ex: amb->update( amb_num, data, keta );
-                
-                // TODO Notifyに通知
-                if( Sens[i].status != SSTAT_t::normal ) {
-                    // ex: notify->set( sen->Data, sen->status )
+                // 通知が必要か判断
+                if( Sens[i].status == SSTAT_t::warn || Sens[i].status == SSTAT_t::caution ) {
+                    _notify[i] = true;
                 }
+
                 return true;
             }
         }
@@ -347,23 +350,30 @@ Sensor * SensList::getSensor( const String id, const SENS_t type ) {
  * @brief Ambientデータの生成
  * @param dt[] 戻りデータ（バッファは呼び出し元が作成）
  */
-void SensList::getAmbientData( st_AMB *dt[] ) {
-    for( uint8_t i; i < Num; i++  ) {
+void SensList::getAmbientData( st_AMB dt[] ) {
+    //Serial.println("getAmbientData()");
+    for( int i=0; i < Num; i++  ) {
+        //Serial.printf("Sens[%d]\n", i );
         if( Sens[i].amb_templ != 0 ) {
-            dt[Sens[i].amb_templ]->dt  = Sens[i].Data.Templ;
-            dt[Sens[i].amb_templ]->use = true;
-        } 
+            //Serial.printf("%d Templ : %f\n",Sens[i].amb_templ, Sens[i].Data.Templ);
+            dt[Sens[i].amb_templ-1].dt  = Sens[i].Data.Templ;
+            dt[Sens[i].amb_templ-1].use = true;
+            
+        }
         if( Sens[i].amb_humid != 0 ) {
-            dt[Sens[i].amb_humid]->dt  = Sens[i].Data.Humid;
-            dt[Sens[i].amb_humid]->use = true;
+            //Serial.printf("%d Humid : %f\n",Sens[i].amb_humid, Sens[i].Data.Humid);
+            dt[Sens[i].amb_humid-1].dt  = Sens[i].Data.Humid;
+            dt[Sens[i].amb_humid-1].use = true;
+            
         }
         if( Sens[i].amb_avs   != 0 ) {
-            dt[Sens[i].amb_avs]->dt    = Sens[i].Data.AVS;
-            dt[Sens[i].amb_avs]->use   = true;
+            //Serial.printf("%d AVS   : %f\n", Sens[i].amb_avs, Sens[i].Data.AVS);
+            dt[Sens[i].amb_avs-1].dt    = Sens[i].Data.AVS;
+            dt[Sens[i].amb_avs-1].use   = true;
         }
     }
-}
-
+    //Serial.println("getAmbientData() -- end");
+ }
 
 /**
  * @brief DEBUG dump

@@ -11,9 +11,12 @@
 #ifndef __NETRTC_H__
 #define __NETRTC_H__
 
+#include "SAST_M5.h"
 #include <M5Stack.h>
 #include <WiFi.h>
 #include <time.h>
+#include <WiFiClientSecure.h>
+#include "Ambient.h"
 
 /**
  * @brief NTP
@@ -21,15 +24,24 @@
  */
 class netRTC {
   private:
+// Ambient
+Ambient AMB;
+
+//WiFi Client
+WiFiClient Client;
+
 
     // UpdateTiming
     const unsigned long rst_hour = 600 * 1000;    // 10minute
     //const unsigned long rst_hour = 2.16e7;    // 6hour
 
-    bool          IsSet = false;
-    const char*   ssid;
-    const char*   key;
-    const char*   ntpServer =  "ntp.jst.mfeed.ad.jp";
+
+    bool          IsWiFi_Set = false;
+    String        ssid;
+    String        key;
+    const char*   ntp1 = "ntp.jst.mfeed.ad.jp";
+    const char*   ntp2 = "ntp.nict.jp";
+    const char*   ntp3 = "time.cloudflare.com";
     const long    gmtOffset_sec = 3600 * 9;   // JST +9:00
     uint16_t      daylightOffset_sec = 0;
     struct tm     tf;                 // 現在のtm構造体
@@ -38,6 +50,12 @@ class netRTC {
     char          str_ltime[24];      // 長い時間 YYYY-MM-DD hh:mm:ss.ttt
     uint16_t      minute;           
     uint16_t      rst_count = 0;      // reset counter
+    bool          amb_use = false;    // use Ambient
+    const char*   LINE_Notify = "notify-api.line.me"; 
+    String        LINE_token;
+    bool          LINE_use = false;   // use LINE
+    String        GAS_URL;            //
+    bool          GAS_use = false;    // use Google Spreadsheet
 
   public:
     void        setAP( const char *wifi_ssid, const char *wifi_key );
@@ -50,9 +68,22 @@ class netRTC {
     void        beep();
     time_t      getTimeRAW();
     bool        isSet();
+    bool        isConnect();
     double      getTimeDiffer( const time_t srcTime );
     static bool makeTimeString( const time_t srcTime , char *timeSTR );
     bool        isElapsed( const time_t srcTime, const int min = 5 );
+
+    bool        connect();
+    bool        disconnect();
+
+    void        setAmbient( Ambient *amb );
+    void        setupAmbient( const int channel, const char* write, const char* read );
+    void        setupNotify( const char* token );
+    void        setupGAS( const char* URL );
+    bool        sendAmbient( st_AMB dt[] );
+    bool        sendGAS( String data );
+    bool        sendNotify( String mess );
+
 };
 
 #endif //__NETRTC_H_

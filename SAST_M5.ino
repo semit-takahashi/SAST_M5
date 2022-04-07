@@ -6,7 +6,7 @@
  *  @date 2022-03-07
  *  @copyright Copyright (c) 2022 SEM-IT 
 */
-#define _VERSION_ "2.2.0 20220404"
+#define _VERSION_ "2.3.0 20220407"
 //#define DEBUG
 //#define __SCREEN_SHOT
 //#define TEST
@@ -24,7 +24,11 @@
 #include "sensor.h"
 
 // MUTEX（画面描画時利用）
-//portMUX_TYPE mutex = portMUX_INITIALIZER_UNLOCKED;
+portMUX_TYPE mutex = portMUX_INITIALIZER_UNLOCKED;
+
+// タスクハンドル
+TaskHandle_t taskHandle;
+void loop2( void* arg );   // プロトタイプ
 
 /*===================================================== Class ENV III SENS ===*/
 class sens_EnvSensIII {
@@ -191,18 +195,17 @@ int8_t getRSSI_lazurite( int16_t rssi ) {
 /**
  * @brief ボタン押下orタイムアウトまでブロック
  * @param sec タイムアウト秒
- * @return true ボタン押下で終了
- * @return false タイムアウトで終了
+ * @return BTN_t 終了イベント種類
  */
-bool wait_btnPress( uint16_t sec ) {
+BTN_t wait_btnPress( uint16_t sec ) {
     for( int i=0; i < sec * 10 ; i++ ) {
         M5.update();
-        if (M5.BtnA.wasPressed() || M5.BtnB.wasPressed() || M5.BtnC.wasPressed()) {
-            return true;
-        }
+        if (M5.BtnA.wasPressed() ) return BTN_t::A;
+        if (M5.BtnB.wasPressed() ) return BTN_t::B;
+        if (M5.BtnC.wasPressed() ) return BTN_t::C;
         delay(100);
     }
-    return false;
+    return BTN_t::OUT;
 }
 /* ======================================================================================= Globals */
 
@@ -222,14 +225,10 @@ netRTC RTC;
 M5_LCD LCD;
 
 // INI呼び出し
-INF ini;
+INF INI;
 
-#if 0
-// タイマー割込
-Ticker  int_SBar;
-bool sClock = false;    // 秒点滅用フラグ
-Ticker  int_EnvSens;
-#endif
+
+
 
 /* =========================================================================================setup */
 void setup() {
@@ -252,10 +251,11 @@ void setup() {
 // INI呼び出し
   M5.Lcd.print("\nLoad INI ... ");
   Serial.println("\nLoad INI ... ");
-  ini.setSensorList( &SENSORS );   // Singletonにしても良いかも
-  ini.load();
+  INI.setSensorList( &SENSORS );   // Singletonにしても良いかも
+  INI.load();
   M5.Lcd.println("done.");
   Serial.println("done.");
+  Serial.println(INI.Name);
 
 // DEBUG
   //SENSORS.dump();
@@ -263,7 +263,7 @@ void setup() {
   // 時刻設定(Wi-Fi接続)
   for( int i=0; i < 3; i++ ) {
     st_wifi ap;
-    ap = ini.getWiFi( i );
+    ap = INI.getWiFi( i );
     if( ap.ssid == NULL ) continue;
     RTC.setAP( ap.ssid.c_str(), ap.key.c_str() );
     if( RTC.setNTP() ) {
@@ -290,7 +290,7 @@ void setup() {
 
   for( int i=0; i<5; i++ ) {
     String buff = Serial2.readStringUntil('\n');
-    Serial.printf("buff:%s\r\n",buff.c_str());
+    //Serial.printf("buff:%s\r\n",buff.c_str());
     M5.Lcd.print('.');
     buff.trim();
     if( buff.startsWith("Ready") ) {
@@ -314,16 +314,34 @@ void setup() {
   LCD.init( &RTC, &SENSORS );
   LCD.draw(true);
   
-  //M5.Lcd.drawBmpFile( SD, "/SAST_BACK.bmp", 0,0 );
+  //Ambient初期化
+  Serial.println(INI.amb_chID);
+  Serial.println(INI.amb_wKey);
+  
+  //AMB.begin( INI.amb_chID, INI.amb_wKey.c_str(), &Client );
+  //RTC.setAmbient( &AMB );
+  RTC.setupAmbient( INI.amb_chID, INI.amb_wKey.c_str(), INI.amb_rKey.c_str());
 
-  // Debug
-  LCD.setURL("https://www.sem-it.com");
+  //LINE NOtify初期化
+  RTC.setupNotify( INI.LINE_token.c_str() );
+
+
+  // set QR Code
+  Serial.printf("Graph:%s\n",INI.QRCode.c_str());
+  LCD.setURL(INI.QRCode);
+
+  // set LINE Group
+  Serial.printf("LINE :%s\n",INI.LINE_GroupURL.c_str());
+  LCD.setLINE(INI.LINE_GroupURL);
+
+  // ネットワーク処理スレッド起動
+  xTaskCreatePinnedToCore( loop2, "loop2", 8192, NULL, 1, &taskHandle, 1 );
 
   Serial.println("done setup()");
 }
 
 
-/* ===========================================================================================loop */
+/* ===========================================================================================loop(Main1) */
 void loop() {
   //Serial.println("Enter Loop()");
 
@@ -357,33 +375,41 @@ void loop() {
   // 本体センサーの読み出し(20回に1回)
   //Serial.printf("snv_count:%d\r\n",env_count);
   if( env_count++ % 20 == 0) {
-    Serial.println("loop::Check ENVIII");
+    //Serial.println("loop::Check ENVIII");
     dt = S_ENV.getData();
     dt->date = RTC.getTimeRAW();    // 現在時刻を設定
     SENSORS.updateEnv( dt );
   }
 
+  // TODO センサーの未反応チェック
+  for( int i=0; i < SENSORS.Num; i++ ) {
+    if( RTC.isElapsed( SENSORS.Sens[i].Data.date, 10 ) ) {
+      // 経過している
+      SENSORS.Sens[i].status == SSTAT_t::lost;
+    }
+  }
+
   // ボタンAが押された時の処理
-  //Serial.println("Check Button..");
   if (M5.BtnA.wasPressed()) {
     LCD.setBrightness();
   }
 
-  // ボタンBが押された時の処理：Clear
+  // ボタンBが押された時の処理 詳細ステータス表示
   if (M5.BtnB.wasPressed()) {
     LCD.drawStat();
+
 #ifdef __SCREEN_SHOT
       M5.ScreenShot.snap();
       Serial.println("Screen Shot!");
 #endif
   }
 
-  // ボタンCが押された時の処理：Clear
+  // ボタンCが押された時の処理
   if (M5.BtnC.wasPressed()) {
-    LCD.showURL();
+    LCD.showInfo();
   }
 
-  // 画面更新]
+  // 画面更新
   //Serial.println("loop::Draw LCD");
   LCD.draw( );
 
@@ -392,4 +418,97 @@ void loop() {
   //Serial.println("End Loop");
 }
 
-/* ======================================================== Sensor Decorder *///
+/* ===========================================================================================loop2 */
+void loop2( void* arg ) {
+  static time_t latest = RTC.getTimeRAW(); // 現時刻設定
+
+  while(1) {
+    //Serial.printf("latest: %d\n", latest );
+    
+    // Notifyの確認
+    for( int i = 0; i < SENSORS.Num; i++ ) {
+      if( SENSORS.Sens[i].status == SSTAT_t::caution ) {
+        // 警告の場合は１分おき
+        if( RTC.isElapsed( SENSORS.Sens[i].notify_time, 1 ) ) {
+          Serial.printf("sendNotify(%d) CAUTION\n",i);
+          String mess = makeNotifyMessage( INI.Name.c_str(), &SENSORS.Sens[i] );
+          RTC.sendNotify(mess);
+          SENSORS.Sens[i].notify_time = RTC.getTimeRAW();
+        }
+      }else if( SENSORS.Sens[i].status == SSTAT_t::warn ) {
+        // 注意の場合は１０分おき
+        if( RTC.isElapsed( SENSORS.Sens[i].notify_time, 10 ) ) {
+          Serial.printf("sendNotify(%d) WARN\n",i);
+          String mess = makeNotifyMessage( INI.Name.c_str(), &SENSORS.Sens[i] );
+          RTC.sendNotify(mess);
+          SENSORS.Sens[i].notify_time = RTC.getTimeRAW();
+        }
+      }else if( SENSORS.Sens[i].status == SSTAT_t::lost ) {
+        // LOSTの場合は１０分おき
+        if( RTC.isElapsed( SENSORS.Sens[i].notify_time, 10 ) ) {
+          Serial.printf("sendNotify(%d) LOST",i);
+          String mess = makeNotifyMessage( INI.Name.c_str(), &SENSORS.Sens[i] );
+          RTC.sendNotify(mess);
+          SENSORS.Sens[i].notify_time = RTC.getTimeRAW();
+        }
+      }
+    }
+  
+    // 経過時間確認（1分間）
+    if( !RTC.isElapsed( latest, 1 ) ) {
+      delay(100);
+      continue;
+    }
+    // センサーデータから Ambientデータ生成
+    Serial.println("Send Ambient--");
+    st_AMB dt[MAX_AMB];
+    SENSORS.getAmbientData( dt );
+
+    dt[0].dt = SENSORS.EnvS.Data.Templ;
+    dt[0].use = true;
+    dt[1].dt = SENSORS.EnvS.Data.Press;
+    dt[1].use = true;
+
+    for( int i=0; i < MAX_AMB; i++ ) {
+      Serial.printf("%d:%5.2f(%s), ",i, dt[i].dt, dt[i].use ? "USE" : "NONE");
+    }Serial.println("");
+
+    RTC.sendAmbient( dt );
+
+    // Google Spreadsheetにデータ送信（再送3回）
+  
+    // 無線LAN切断
+  
+    // Wait
+    delay(100);
+    latest = RTC.getTimeRAW();   // 時刻記録
+  }
+}
+
+/**
+ * @brief 通知用の文字列の作成
+ * @param sns センサーデータ
+ * @return String 生成した文字列
+ */
+String makeNotifyMessage( const char* Name, Sensor* s ) {
+  if( s->status == SSTAT_t::normal ) return String("");
+  //Serial.println("makeNotifyMessage()");
+
+  String graph = "\n📊グラフ\n"+INI.QRCode;
+  String mess;
+  String head = String(Name)+String("\n");
+
+  // 警告
+  if( s->status == SSTAT_t::caution ) {
+    mess = "🟥警告!【"+s->Name+"】が"+String(s->thr.caut_templ,1)+"℃を超えました(現在"+String(s->Data.Templ,1)+"℃)\n";
+
+  // 注意
+  }else if( s->status == SSTAT_t::warn ) {
+    mess = "🟠注意!【"+s->Name+"】が"+String(s->thr.warn_templ,1)+"℃を超えました(現在"+String(s->Data.Templ,1)+"℃)\n";
+
+  //センサーロスト
+  }else if( s->status == SSTAT_t::lost ) {
+    mess = "‼️センサー【"+s->Name+"(ID:"+s->ID+")】と接続できません\n";
+  }
+  return head + mess + graph;
+}

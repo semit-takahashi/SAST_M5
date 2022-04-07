@@ -20,7 +20,7 @@
 class sData;
 class SensList;
 class netRTC;
-bool wait_btnPress( uint16_t sec );
+BTN_t wait_btnPress( uint16_t sec );
 int8_t getBATT_lazurite( float batt );
 int8_t getRSSI_lazurite( int16_t rssi );
 
@@ -46,8 +46,7 @@ class M5_LCD {
     public:
         void init( netRTC* rtc, SensList *sns ) ;
         
-        void showURL();
-        void showLINE();
+        void showInfo();
         void setLINE( String url );
         void setURL( String url );
         void setBrightness( int8_t brt = -1 );
@@ -59,7 +58,8 @@ class M5_LCD {
         void drawStat();
 
     private:
-        void showQR( String url, String caption = "" );
+        bool showQR( uint8_t num );
+        bool drawQR( String url, String caption = "" );
         void drawPanel( bool all = false );
         void drawStatusBar();
         uint8_t ftoa1( float val );

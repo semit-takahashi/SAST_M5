@@ -43,6 +43,8 @@ bool INF::load(){
         // Cannot do anything else
         while (1);
     }
+    // ======== Name
+    Name = getValueSTR( in, "NAME", "Name", buff, buff_len );
 
     // ======== Wi-Fi
     sect="WiFi";
@@ -55,14 +57,14 @@ bool INF::load(){
 
     // ======== Ambient
     sect = "Ambient";
-    amb_chID = getValueSTR( in, sect.c_str(), "channel", buff, buff_len );
+    amb_chID = getValueINT( in, sect.c_str(), "channel", buff, buff_len );
     amb_wKey = getValueSTR( in, sect.c_str(), "read", buff, buff_len );
     amb_rKey = getValueSTR( in, sect.c_str(), "write", buff, buff_len );
 
     // ======== LINE
     sect = "LINE";
-    LINE_token = getValueSTR( in, sect.c_str(), "URL", buff, buff_len );
-    LINE_URL = getValueSTR( in, sect.c_str(), "token", buff, buff_len );
+    LINE_token = getValueSTR( in, sect.c_str(), "token", buff, buff_len );
+    LINE_GroupURL = getValueSTR( in, sect.c_str(), "GroupURL", buff, buff_len );
 
     // ======== Google Sopreadsheet
     sect = "Google";

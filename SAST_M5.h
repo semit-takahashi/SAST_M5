@@ -21,8 +21,6 @@
 #include "image.h"      // 画面背景データ
 #include "time.h"
 #include <WiFi.h>
-#include <Ticker.h>
-
 
 /**
  * @brief Sensor Type
@@ -41,6 +39,7 @@ enum class SSTAT_t : int {
   normal =0,
   warn,
   caution,
+  lost,
   disable,
 };
 
@@ -79,13 +78,27 @@ typedef struct {
  * @brief Ambientデータ構造体
  */
 typedef struct {
-  float  dt;
+  float  dt = 0.0;
   bool   use = false;
 }st_AMB;
+
+/**
+ * @brief ボタンイベント醸造対
+ * 
+ */
+enum class BTN_t {
+  OUT =0,
+  A,
+  B,
+  C,
+};
 
 
 // 最大センサー数
 const uint8_t MAX_SENS = 6;
+
+// 最大Ambient数
+const uint8_t MAX_AMB = 8;
 
 // 画面サイズ、フォントベースサイズ指定
 const uint16_t LCD_WIDTH      = 320;
