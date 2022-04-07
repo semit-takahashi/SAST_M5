@@ -6,7 +6,7 @@
  *  @date 2022-03-07
  *  @copyright Copyright (c) 2022 SEM-IT 
 */
-#define _VERSION_ "2.3.1 20220407"
+#define _VERSION_ "2.3.2 20220408"
 //#define DEBUG
 //#define __SCREEN_SHOT
 //#define TEST
@@ -381,11 +381,12 @@ void loop() {
     SENSORS.updateEnv( dt );
   }
 
-  // TODO センサーの未反応チェック
+  // センサーの未反応チェック
   for( int i=0; i < SENSORS.Num; i++ ) {
-    if( RTC.isElapsed( SENSORS.Sens[i].Data.date, 10 ) ) {
-      // 経過している
-      SENSORS.Sens[i].status == SSTAT_t::lost;
+    if( SENSORS.Sens[i].Data.date != 0 && RTC.isElapsed( SENSORS.Sens[i].Data.date, 10 ) ) {
+      // 未更新から10分経過している→LOSTに変更
+      Serial.printf("Sens %d is LOST!!\n",i);
+      SENSORS.Sens[i].status = SSTAT_t::lost;
     }
   }
 
@@ -460,7 +461,7 @@ void loop2( void* arg ) {
       continue;
     }
     // センサーデータから Ambientデータ生成
-    Serial.println("Send Ambient--");
+    Serial.println("Ambient-----");
     st_AMB dt[MAX_AMB];
     SENSORS.getAmbientData( dt );
 
@@ -470,7 +471,7 @@ void loop2( void* arg ) {
     dt[1].use = true;
 
     for( int i=0; i < MAX_AMB; i++ ) {
-      Serial.printf("%d:%5.2f(%s), ",i, dt[i].dt, dt[i].use ? "USE" : "NONE");
+      Serial.printf("%d:%5.2f%c, ",i, dt[i].dt, dt[i].use ? 'o' : 'x' );
     }Serial.println("");
 
     RTC.sendAmbient( dt );

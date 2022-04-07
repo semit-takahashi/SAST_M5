@@ -397,6 +397,7 @@ bool M5_LCD::view_state( uint16_t n, SSTAT_t stat, sData *dt ){
     PN.setTextFont( 0 );
     PN.setTextSize( 2 );
 
+/*  処理入れたので不要になったはず
     // 更新からの経過時間計算
     if( dt->date != 0 ) {
       double sec = RTC->getTimeDiffer( dt->date );
@@ -408,7 +409,7 @@ bool M5_LCD::view_state( uint16_t n, SSTAT_t stat, sData *dt ){
       PN.setCursor( 5,15 );
       PN.print( buff );
     }
-
+*/
     // バッテリー
     sprintf( buff, "B:%3.1f", dt->batt);
     PN.setCursor( 5,35 );

@@ -274,7 +274,7 @@ void netRTC::setAmbient( Ambient *amb ) {
  * @return false 失敗
  */
 bool netRTC::sendAmbient( st_AMB dt[]) {
-  Serial.println("netRTC::sendAmbient()");
+  Serial.print("netRTC::sendAmbient()");
   for( int i=0; i < MAX_AMB; i++) {
     if( dt[i].use ) {
       //Serial.printf(" %d = %s\n", i+1, String( dt[i].dt, 1).c_str() );
@@ -282,7 +282,7 @@ bool netRTC::sendAmbient( st_AMB dt[]) {
     }
   }
   bool res = AMB.send();
-  Serial.printf("res : %d (%d)\n",res, AMB.status);
+  Serial.printf("-> %s (%d)\n",res ? "OK" : "NG", AMB.status);
   return res;
 }
 
