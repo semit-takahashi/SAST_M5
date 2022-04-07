@@ -52,7 +52,8 @@ bool M5_LCD::update( uint16_t n, SSTAT_t stat, sData *dt ){
     // 初期時は文字を表示させない 2.3.2
     if( dt->date == 0 ) {
         PN.pushSprite( PN_pos[n].x, PN_pos[n].y );
-        return true;
+        PN.deleteSprite();
+       return true;
     }
 
     // フォントカラー設定
@@ -403,19 +404,16 @@ bool M5_LCD::view_state( uint16_t n, SSTAT_t stat, sData *dt ){
     PN.setTextFont( 0 );
     PN.setTextSize( 2 );
 
-/*  処理入れたので不要になったはず
     // 更新からの経過時間計算
     if( dt->date != 0 ) {
       double sec = RTC->getTimeDiffer( dt->date );
       long min = sec /60;
-      Serial.printf(" %d min / %f sec\n",min, sec);
-
-      if( min > 5 ) makePanelBG( &PN, SSTAT_t::warn );
+      //Serial.printf(" %d min / %f sec\n",min, sec);
       sprintf( buff, "T:%2d",min);
       PN.setCursor( 5,15 );
       PN.print( buff );
     }
-*/
+
     // バッテリー
     sprintf( buff, "B:%3.1f", dt->batt);
     PN.setCursor( 5,35 );

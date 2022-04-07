@@ -6,7 +6,7 @@
  *  @date 2022-03-07
  *  @copyright Copyright (c) 2022 SEM-IT 
 */
-#define _VERSION_ "2.3.3 20220408"
+#define _VERSION_ "2.3.4 20220408"
 //#define DEBUG
 //#define __SCREEN_SHOT
 //#define TEST
