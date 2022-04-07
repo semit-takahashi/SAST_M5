@@ -6,7 +6,7 @@
  *  @date 2022-03-07
  *  @copyright Copyright (c) 2022 SEM-IT 
 */
-#define _VERSION_ "2.3.2 20220408"
+#define _VERSION_ "2.3.3 20220408"
 //#define DEBUG
 //#define __SCREEN_SHOT
 //#define TEST
@@ -383,10 +383,11 @@ void loop() {
 
   // センサーの未反応チェック
   for( int i=0; i < SENSORS.Num; i++ ) {
-    if( SENSORS.Sens[i].Data.date != 0 && RTC.isElapsed( SENSORS.Sens[i].Data.date, 10 ) ) {
+    if( SENSORS.Sens[i].Data.date != 0 && RTC.isElapsed( SENSORS.Sens[i].Data.date, 10 ) && SENSORS.Sens[i].status != SSTAT_t::lost) {
       // 未更新から10分経過している→LOSTに変更
       Serial.printf("Sens %d is LOST!!\n",i);
       SENSORS.Sens[i].status = SSTAT_t::lost;
+      SENSORS.Sens[i].updated = true;         // 画面更新のため更新済みに
     }
   }
 

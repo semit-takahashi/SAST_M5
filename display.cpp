@@ -49,6 +49,12 @@ bool M5_LCD::update( uint16_t n, SSTAT_t stat, sData *dt ){
     PN.setTextColor( TFT_WHITE );
     PN.setTextFont( 1 );
 
+    // 初期時は文字を表示させない 2.3.2
+    if( dt->date == 0 ) {
+        PN.pushSprite( PN_pos[n].x, PN_pos[n].y );
+        return true;
+    }
+
     // フォントカラー設定
     //Serial.println("Select Font Color");
     //Serial.printf("PANEL_bgc %x\n",&PANEL_bgc);
