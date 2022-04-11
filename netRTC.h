@@ -35,7 +35,6 @@ WiFiClient Client;
     const unsigned long rst_hour = 600 * 1000;    // 10minute
     //const unsigned long rst_hour = 2.16e7;    // 6hour
 
-
     bool          IsWiFi_Set = false;
     String        ssid;
     String        key;
@@ -58,6 +57,10 @@ WiFiClient Client;
     bool          GAS_use = false;    // use Google Spreadsheet
 
   public:
+    uint8_t       _cnt_error = 0;           // 接続エラー回数
+
+
+  public:
     void        setAP( const char *wifi_ssid, const char *wifi_key );
     bool        setNTP();
     void        calc();
@@ -77,7 +80,7 @@ WiFiClient Client;
     bool        disconnect();
 
     void        setAmbient( Ambient *amb );
-    void        setupAmbient( const int channel, const char* write, const char* read );
+    void        setupAmbient( const int channel, const char* write );
     void        setupNotify( const char* token );
     void        setupGAS( const char* URL );
     bool        sendAmbient( st_AMB dt[] );

@@ -21,8 +21,8 @@ bool INF::load(){
 
     Serial.println("Load INI file.");
     if (!SD.begin()) {
-        Serial.println(" Please Insert SD-CARD and RESET! ");
-        M5.Lcd.println(" Please Insert SD-CARD and RESET! ");
+        Serial.println("\nERROR! Please Insert SD-CARD and RESET!");
+        M5.Lcd.println("\nERROR! Please Insert SD-CARD and RESET!");
         while (1) ;
     }
     IniFile in(iniFile);
@@ -58,8 +58,7 @@ bool INF::load(){
     // ======== Ambient
     sect = "Ambient";
     amb_chID = getValueINT( in, sect.c_str(), "channel", buff, buff_len );
-    amb_wKey = getValueSTR( in, sect.c_str(), "read", buff, buff_len );
-    amb_rKey = getValueSTR( in, sect.c_str(), "write", buff, buff_len );
+    amb_wKey = getValueSTR( in, sect.c_str(), "write", buff, buff_len );
 
     // ======== LINE
     sect = "LINE";
@@ -113,6 +112,11 @@ bool INF::load(){
  * @return st_wifi 
  */
 st_wifi INF::getWiFi( uint8_t num ) {
+    Serial.printf("INF::getWiFi(%d)\n",num);
+    if( num > 3 ) {
+      st_wifi ap;
+      return ap;
+    }
     return wifi[num];
 }
 
@@ -164,7 +168,7 @@ float INF::getValueFLOAT( IniFile in, const char *sect, const char *name, char *
 
 // INI float 取得
 int16_t INF::getValueINT( IniFile in, const char *sect, const char *name, char *buff, size_t buff_len ) {
-    int val = 0;;
+    int val = 0;
     if ( in.getValue( sect, name, buff, buff_len , val) ) {
       DMSGf("[%s] [%s]: %s\r\n", sect, name, buff);
       return val;

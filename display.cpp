@@ -242,7 +242,11 @@ void M5_LCD::drawStatusBar() {
     // 本体情報
     sData *dt = &SENS->EnvS.Data;
     char   buff[64];
-    sprintf( buff, "%3.0fC %2.0f%% %4dhPa", dt->Templ, dt->Humid, dt->Press);    
+    if( RTC->_cnt_error != 0 ) {
+        sprintf( buff, "%3.0fC %2.0f%% %4dhPa (%d)", dt->Templ, dt->Humid, dt->Press, RTC->_cnt_error);
+    }else{
+        sprintf( buff, "%3.0fC %2.0f%% %4dhPa", dt->Templ, dt->Humid, dt->Press);
+    }
     String envStr = buff;
     //Serial.println(envStr);
 

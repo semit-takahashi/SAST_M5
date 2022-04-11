@@ -17,8 +17,8 @@
 #endif
 
 typedef struct{
-    String ssid;
-    String key;
+    String ssid = "";
+    String key = "";
 }st_wifi;
 
 typedef struct{
@@ -29,8 +29,8 @@ typedef struct{
 
 typedef struct{
     SENS_t stype;
-    String name;
-    String id;
+    String name = "";
+    String id = "";
     uint8_t amb_templ;
     uint8_t amb_humid;
     uint8_t amb_avs;
@@ -42,7 +42,7 @@ class INF {
 
     public:
         // 本体Name
-        String Name;
+        String Name = "";
 
         // Wifi
         st_wifi wifi[3];
@@ -56,18 +56,17 @@ class INF {
         // ambient
         uint16_t  amb_chID;
         String  amb_wKey;
-        String  amb_rKey;
 
         // LINE
-        String  LINE_token;
-        String  LINE_NotifyURL;
-        String  LINE_GroupURL;
+        String  LINE_token = "";
+        String  LINE_NotifyURL = "";
+        String  LINE_GroupURL = "";
 
         // Google Spredseet
-        String  GS_token;
+        String  GS_token = "";
 
         // QRコードURL
-        String  QRCode;
+        String  QRCode = "";
 
         // Threshold TEMP
         float   temp_warn = 0.0;

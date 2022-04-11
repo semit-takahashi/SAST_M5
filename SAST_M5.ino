@@ -6,7 +6,7 @@
  *  @date 2022-03-07
  *  @copyright Copyright (c) 2022 SEM-IT 
 */
-#define _VERSION_ "2.3.4 20220408"
+#define _VERSION_ "2.3.6 20220410"
 //#define DEBUG
 //#define __SCREEN_SHOT
 //#define TEST
@@ -264,7 +264,7 @@ void setup() {
   for( int i=0; i < 3; i++ ) {
     st_wifi ap;
     ap = INI.getWiFi( i );
-    if( ap.ssid == NULL ) continue;
+    if( ap.ssid.length() == 0 ) continue;
     RTC.setAP( ap.ssid.c_str(), ap.key.c_str() );
     if( RTC.setNTP() ) {
       break;
@@ -315,16 +315,12 @@ void setup() {
   LCD.draw(true);
   
   //Ambient初期化
-  Serial.println(INI.amb_chID);
-  Serial.println(INI.amb_wKey);
-  
-  //AMB.begin( INI.amb_chID, INI.amb_wKey.c_str(), &Client );
-  //RTC.setAmbient( &AMB );
-  RTC.setupAmbient( INI.amb_chID, INI.amb_wKey.c_str(), INI.amb_rKey.c_str());
+  Serial.printf("AMB Channel  %d\n",INI.amb_chID);
+  Serial.printf("AMB WriteKey %s\n",INI.amb_wKey.c_str());
+  RTC.setupAmbient( INI.amb_chID, INI.amb_wKey.c_str() );
 
-  //LINE NOtify初期化
+  //LINE Notify初期化
   RTC.setupNotify( INI.LINE_token.c_str() );
-
 
   // set QR Code
   Serial.printf("Graph:%s\n",INI.QRCode.c_str());

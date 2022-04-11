@@ -252,10 +252,9 @@ bool netRTC::disconnect() {
  * @brief Ambientへのグラフ作成処理初期化
  * 
  * @param channel Ambientチャンネル
- * @param write  ライトキー
- * @param read  リードキー（未使用）
+ * @param write ライトキー
  */
-void netRTC::setupAmbient( const int channel, const char* write, const char* read ) {
+void netRTC::setupAmbient( const int channel, const char* write) {
   connect();
   WiFi.setAutoConnect( true ); //TODO 自動接続？
   AMB.begin( channel, write, &Client );
@@ -282,6 +281,19 @@ bool netRTC::sendAmbient( st_AMB dt[]) {
     }
   }
   bool res = AMB.send();
+  if( res == false ) {
+    Serial.printf("-> ERROR(%d) ",_cnt_error );
+    if( ++_cnt_error == 10 ) {
+      //10回連続で通信不可の場合は強制リセット
+      Serial.println("Reset M5Stack!");
+      beep();
+      beep();
+      beep();
+      M5.Power.reset();
+    }
+  }else{
+    _cnt_error = 0;      // 正常ならエラーカウントを0に
+  }
   Serial.printf("-> %s (%d)\n",res ? "OK" : "NG", AMB.status);
   return res;
 }
@@ -320,6 +332,14 @@ void netRTC::setupNotify( const char* token ) {
 bool netRTC::sendNotify( String mess ){
   Serial.println("sendNotify()");
   if ( !LINE_use ) return false;
+
+  // 接続を再確認して未接続の場合は再接続処理
+  if( WiFi.status() != WL_CONNECTED ) {
+    Serial.println("Retry Wi-Fi connect...");
+    disconnect();
+    delay(500);
+    connect();
+  }
 
   WiFiClientSecure client;
 
