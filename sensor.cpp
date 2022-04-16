@@ -121,14 +121,15 @@ void sData::dump( const sData *s ){
  */
 void Sensor::init( const SENS_t type, const String name, const String id, const SensThresh *th,
                     const uint8_t a_templ, const uint8_t a_humid, const uint8_t a_avs ) {
-    Type = type;
     Name = name;
     ID = id;
-    updated = false;
     thr.copy( th );
-    use = true;
+    updated = false;
     notify_time = 0;
-
+    Type = type;
+    use = true;
+    status = SSTAT_t::normal;
+ 
     amb_templ = a_templ;
     amb_humid = a_humid;
     amb_avs   = a_avs;  
@@ -280,7 +281,9 @@ bool SensList::add( const SENS_t type, const  String id, const  String name , Se
     //Serial.println("SensList::add()");
     Serial.printf("Add : Type %d , Name %s , ID: %s \n",type, name.c_str(), id.c_str() );
     
-    if( type == SENS_t::None ) return false;
+    if( type == SENS_t::None ) {
+      return false;
+    }
     if( Num < MAX_SENS ) {
         Sens[Num].init( type, name, id, &th, a_templ, a_humid, a_avs );
         Num++;
@@ -354,6 +357,10 @@ void SensList::getAmbientData( st_AMB dt[] ) {
     //Serial.println("getAmbientData()");
     for( int i=0; i < Num; i++  ) {
         //Serial.printf("Sens[%d]\n", i );
+        if( Sens[i].status == SSTAT_t::lost || Sens[i].use == false || Sens[i].Data.date == 0 ) {
+            Serial.printf("Sens[%d] is Skip!\n",i);            
+            continue;
+        }
         if( Sens[i].amb_templ != 0 ) {
             //Serial.printf("%d Templ : %f\n",Sens[i].amb_templ, Sens[i].Data.Templ);
             dt[Sens[i].amb_templ-1].dt  = Sens[i].Data.Templ;

@@ -47,7 +47,7 @@ WiFiClient Client;
     time_t        tm;                 // 現在のtime_t
     char          str_stime[16];      // 短い時間 MM/DD hh:mm
     char          str_ltime[24];      // 長い時間 YYYY-MM-DD hh:mm:ss.ttt
-    uint16_t      minute;           
+    uint16_t      _minute;           
     uint16_t      rst_count = 0;      // reset counter
     bool          amb_use = false;    // use Ambient
     const char*   LINE_Notify = "notify-api.line.me"; 

@@ -382,7 +382,7 @@ void M5_LCD::makePanelBG( TFT_eSprite *sp, SSTAT_t stat ) {
     sp->drawFastVLine( 0,           0, PAN_HEIGHT, BGC_LINE_L );
     sp->drawFastVLine( PAN_WIDTH-1, 0, PAN_HEIGHT, BGC_LINE_D ); 
     sp->drawFastHLine( 0,           0, PAN_WIDTH , BGC_LINE_L );
-    sp->drawFastHLine( PAN_HEIGHT-1,0, PAN_WIDTH , BGC_LINE_D );
+    sp->drawFastHLine( 0,PAN_HEIGHT-1, PAN_WIDTH , BGC_LINE_D );
 }
 
 

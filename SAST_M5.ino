@@ -2,17 +2,18 @@
  *  @file SAST_M5.ino
  *  @author F.Takahashi (fumihito.takahashi@sem-it.com)
  *  @brief
- *  @version 0.1
- *  @date 2022-03-07
+ *  @version 2.3.9
+ *  @date 2022-04-16
  *  @copyright Copyright (c) 2022 SEM-IT 
 */
-#define _VERSION_ "2.3.6 20220410"
+#define _VERSION_ "2.4.1 20220416"
 //#define DEBUG
 //#define __SCREEN_SHOT
 //#define TEST
 //#define SAST_DEBUG
 
 #include <M5Stack.h>
+#include "M5StackUpdater.h"
 #include "SAST_M5.h"
 
 #include <Wire.h>
@@ -233,6 +234,12 @@ INF INI;
 /* =========================================================================================setup */
 void setup() {
   M5.begin();
+  if(digitalRead(BUTTON_A_PIN) == 0) {
+     Serial.println("Will Load New binary");
+     updateFromFS(SD, "/SAST_M5.ino.bin");
+     ESP.restart();
+  }
+  
   M5.Power.begin();
 #ifdef __SCREEN_SHOT
   Serial.println("Use Screen shot!!");

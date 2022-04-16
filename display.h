@@ -95,7 +95,7 @@ class M5_LCD {
         const uint16_t  BGC_PAN_WARN = M5.Lcd.color565( 0xff, 0x8a, 0x00 );
         const uint16_t  BGC_PAN_CAUT = M5.Lcd.color565( 0xf2, 0x00, 0x51 );
         const uint16_t  BGC_PAN_LOST = 0x7BEF;  // TFT_DARKGRAY
-        const uint16_t  BGC_PAN_NONE = 0x000F;  // TFT_NAVY
+        const uint16_t  BGC_PAN_NONE = 0x0008;  // TFT_NAVY
         const uint16_t  BGC_STT      = M5.Lcd.color565( 0x00, 0x00, 0x7b );
         const uint16_t  BGC_TRANSP   = M5.Lcd.color565( 0x00, 0xff, 0x00 );
         const uint16_t  BGC_LINE_D   = TFT_DARKGREY;

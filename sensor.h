@@ -79,7 +79,7 @@ class Sensor {
         sData   prevData;
         bool    updated;
         bool    use = false;
-        SSTAT_t status;
+        SSTAT_t status = SSTAT_t::disable;
         SensThresh thr;
         double  diffSec;
         time_t  notify_time = 0;

@@ -55,7 +55,7 @@ bool netRTC::setNTP()
   }
   ip = WiFi.localIP();
   M5.Lcd.print(" CONNECTED\n\n ["); M5.Lcd.print(ip);M5.Lcd.println("]\n");
-  Serial.print(" CONNECTED\n\n ["); Serial.print(ip);Serial.println("]\n");
+  Serial.print(" CONNECTED ["); Serial.print(ip);Serial.println("]");
   
   // Set netRTC time to local
   IsWiFi_Set = true;
@@ -81,7 +81,8 @@ void netRTC::calc() {
   }
   sprintf(str_stime, "%2d/%2d %2d:%02d", tf.tm_mon+1, tf.tm_mday, tf.tm_hour, tf.tm_min );
   sprintf(str_ltime, "%04d-%02d-%02d %02d:%02d:%02d.000", 1900 + tf.tm_year, tf.tm_mon+1, tf.tm_mday, tf.tm_hour, tf.tm_min, tf.tm_sec );
-  minute = tf.tm_hour * 60 + tf.tm_min;
+  _minute = tf.tm_hour * 60 + tf.tm_min;
+
   tm = mktime(&tf);
 }
 
@@ -94,13 +95,12 @@ const char* netRTC::getTimeSTR(){
 }
 
 /**
- * @brief calc()時点の分を返す
+ * @brief calc()時点の1日の経過分を返す
  * @return uint16_t 
  */
 uint16_t netRTC::getMinute() {
-  return minute;
+  return _minute;
 }
-
 
 /**
  * @brief calc()時点のUNIX Timeを取得 LONG型 
@@ -333,6 +333,15 @@ bool netRTC::sendNotify( String mess ){
   Serial.println("sendNotify()");
   if ( !LINE_use ) return false;
 
+  // 22時〜5時の間は通知を停止
+  calc();
+  uint16_t hour = _minute / 60 ;
+  Serial.printf("Notify %d:00 o'clock(%d minute)\n",hour, _minute );
+  if( hour <= 5  || hour >= 22 ) {
+    Serial.println("Notify - Night mode..zzz..");
+    return false;
+  }
+
   // 接続を再確認して未接続の場合は再接続処理
   if( WiFi.status() != WL_CONNECTED ) {
     Serial.println("Retry Wi-Fi connect...");
@@ -344,8 +353,8 @@ bool netRTC::sendNotify( String mess ){
   WiFiClientSecure client;
 
   if (!client.connect(LINE_Notify, 443)) {
-    delay(2000);
     Serial.printf("sendNotify:connection Error!! %s\n",LINE_Notify);
+    delay(2000);
     return false;
   }
   //Serial.println("connect..");
